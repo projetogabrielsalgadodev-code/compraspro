@@ -1,0 +1,282 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────────────────────────────────────────────
+   C-01/C-02: Tokens alinhados com design system.md
+   C-03: Estratégia dark class (next-themes attribute="class")
+   Modo escuro = .dark (padrão do next-themes)
+   Modo claro  = :root (fallback)
+   ─────────────────────────────────────────────── */
+
+:root {
+  color-scheme: light;
+  --bg-app: 245 247 251;
+  --bg-sidebar: 240 245 255;
+  --bg-card: 255 255 255;
+  --bg-card-strong: 246 250 255;
+  --bg-input: 238 244 255;
+  --text-primary: 11 18 32;
+  --text-secondary: 66 85 125;
+  --text-muted: 101 118 155;
+  --border-soft: 92 118 188;
+  --border-soft-alpha: 0.14;
+  --accent-primary: 36 91 255;
+  --accent-secondary: 14 165 233;
+  --accent-tertiary: 99 102 241;
+  --accent-rose: 236 72 153;
+  --accent-primary-glow: 36 91 255;
+  --shadow-card: 0 14px 36px rgba(58, 76, 122, 0.10);
+  --shadow-card-hover: 0 20px 46px rgba(58, 76, 122, 0.16);
+  /* Camadas decorativas adaptáveis por tema */
+  --surface-highlight: rgba(0, 0, 0, 0.03);
+  --surface-inset: rgba(0, 0, 0, 0.04);
+  --grid-line: rgba(0, 0, 0, 0.04);
+  --glow-blend: multiply;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg-app: 9 11 16;
+  --bg-sidebar: 15 18 24;
+  --bg-card: 20 24 32;
+  --bg-card-strong: 13 18 33;
+  --bg-input: 14 20 36;
+  --text-primary: 245 247 251;
+  --text-secondary: 173 187 214;
+  --text-muted: 111 128 166;
+  --border-soft: 138 164 219;
+  --border-soft-alpha: 0.16;
+  --accent-primary: 47 107 255;
+  --accent-secondary: 32 208 255;
+  --accent-tertiary: 120 92 255;
+  --accent-rose: 242 92 146;
+  --accent-primary-glow: 47 107 255;
+  --shadow-card: 0 18px 48px rgba(0, 0, 0, 0.30);
+  --shadow-card-hover: 0 22px 56px rgba(9, 16, 34, 0.44);
+  /* Camadas decorativas adaptáveis por tema */
+  --surface-highlight: rgba(255, 255, 255, 0.06);
+  --surface-inset: rgba(255, 255, 255, 0.05);
+  --grid-line: rgba(255, 255, 255, 0.018);
+  --glow-blend: screen;
+}
+
+html {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 0% 0%, rgb(var(--accent-primary) / 0.18), transparent 18%),
+    radial-gradient(circle at 88% 10%, rgb(var(--accent-secondary) / 0.18), transparent 20%),
+    radial-gradient(circle at 58% 110%, rgb(var(--accent-tertiary) / 0.14), transparent 28%),
+    radial-gradient(circle at 30% 30%, rgb(var(--accent-rose) / 0.07), transparent 22%),
+    linear-gradient(180deg, rgb(var(--bg-app) / 1) 0%, rgb(var(--bg-app) / 0.98) 100%);
+  color: rgb(var(--text-primary));
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+/* C-07: Grid decorativo — usa token tema-adaptável */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black, transparent 85%);
+  opacity: 0.34;
+}
+
+/* C-08: Glow overlay — blend mode adapta ao tema */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at top, rgb(var(--accent-primary) / 0.08), transparent 38%);
+  mix-blend-mode: var(--glow-blend);
+  opacity: 0.7;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@layer base {
+  * {
+    border-color: rgba(var(--border-soft), var(--border-soft-alpha));
+  }
+}
+
+@layer utilities {
+  /* C-09: Superfícies usam token --surface-highlight em vez de rgba(255,255,255,*) fixo */
+  .surface-card {
+    background:
+      linear-gradient(180deg, var(--surface-highlight), transparent 22%),
+      radial-gradient(circle at top right, rgb(var(--accent-primary) / 0.17), transparent 26%),
+      linear-gradient(135deg, rgb(var(--bg-card) / 0.94) 0%, rgb(var(--bg-card-strong) / 0.90) 100%);
+    backdrop-filter: blur(18px);
+    box-shadow: inset 0 1px 0 var(--surface-inset);
+  }
+
+  .surface-panel {
+    background:
+      linear-gradient(180deg, var(--surface-highlight), transparent 18%),
+      radial-gradient(circle at top right, rgb(var(--accent-secondary) / 0.14), transparent 22%),
+      radial-gradient(circle at left center, rgb(var(--accent-primary) / 0.11), transparent 18%),
+      linear-gradient(90deg, rgb(var(--bg-card-strong) / 0.96) 0%, rgb(var(--bg-card) / 0.92) 100%);
+    backdrop-filter: blur(22px);
+    box-shadow: inset 0 1px 0 var(--surface-inset);
+  }
+
+  .surface-highlight {
+    background:
+      linear-gradient(180deg, var(--surface-highlight), transparent 20%),
+      radial-gradient(circle at top right, rgb(var(--accent-secondary) / 0.18), transparent 30%),
+      radial-gradient(circle at bottom left, rgb(var(--accent-primary) / 0.18), transparent 26%),
+      linear-gradient(135deg, rgb(var(--bg-card-strong) / 0.95) 0%, rgb(var(--bg-card) / 0.92) 100%);
+    box-shadow: inset 0 1px 0 var(--surface-inset);
+  }
+
+  .surface-accent {
+    background:
+      linear-gradient(180deg, var(--surface-highlight), transparent 20%),
+      linear-gradient(135deg, rgb(var(--accent-primary) / 0.22) 0%, rgb(var(--accent-tertiary) / 0.16) 46%, rgb(var(--accent-secondary) / 0.14) 100%),
+      linear-gradient(135deg, rgb(var(--bg-card) / 0.96) 0%, rgb(var(--bg-card-strong) / 0.90) 100%);
+    box-shadow: inset 0 1px 0 var(--surface-inset);
+  }
+
+  .ds-panel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 28px;
+    border: 1px solid rgba(var(--border-soft), var(--border-soft-alpha));
+    background:
+      linear-gradient(180deg, var(--surface-highlight), transparent 16%),
+      radial-gradient(circle at top, rgb(var(--accent-primary) / 0.09), transparent 32%),
+      linear-gradient(180deg, rgb(var(--bg-card) / 0.98) 0%, rgb(var(--bg-card-strong) / 0.98) 100%);
+    box-shadow:
+      inset 0 1px 0 var(--surface-inset),
+      0 22px 64px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(18px);
+  }
+
+  .ds-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at top right, rgb(var(--accent-primary) / 0.14), transparent 28%);
+    pointer-events: none;
+  }
+
+  .ds-panel::after {
+    content: "";
+    position: absolute;
+    left: 1px;
+    right: 1px;
+    top: 1px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--surface-highlight), transparent);
+    pointer-events: none;
+  }
+
+  .ds-subpanel {
+    border-radius: 24px;
+    border: 1px solid rgba(var(--border-soft), calc(var(--border-soft-alpha) + 0.04));
+    background:
+      linear-gradient(180deg, var(--surface-highlight), transparent 18%),
+      linear-gradient(180deg, rgb(var(--bg-input) / 0.88) 0%, rgb(var(--bg-card-strong) / 0.92) 100%);
+    box-shadow: inset 0 1px 0 var(--surface-inset);
+  }
+
+  .ds-eyebrow {
+    color: rgb(var(--text-muted));
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+
+  .ds-icon-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.95rem;
+    border: 1px solid rgba(var(--border-soft), calc(var(--border-soft-alpha) + 0.04));
+    background: linear-gradient(180deg, var(--surface-highlight), rgb(var(--bg-input) / 0.92));
+    box-shadow: inset 0 1px 0 var(--surface-inset);
+  }
+
+  .ds-shell-line {
+    position: relative;
+  }
+
+  .ds-shell-line::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgb(var(--border-soft) / 0.7), transparent);
+    opacity: 0.45;
+  }
+
+  .surface-orb {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .surface-orb::after {
+    content: "";
+    position: absolute;
+    inset: auto -12% -35% auto;
+    width: 180px;
+    height: 180px;
+    border-radius: 9999px;
+    background: radial-gradient(circle, rgb(var(--accent-primary) / 0.28) 0%, rgb(var(--accent-secondary) / 0.14) 40%, transparent 72%);
+    filter: blur(16px);
+    pointer-events: none;
+  }
+
+  .soft-stroke {
+    border: 1px solid rgba(var(--border-soft), var(--border-soft-alpha));
+    box-shadow: inset 0 1px 0 var(--surface-inset);
+  }
+
+  .ring-app {
+    box-shadow: 0 0 0 1px rgba(var(--border-soft), var(--border-soft-alpha));
+  }
+
+  .border-app {
+    border-color: rgba(var(--border-soft), var(--border-soft-alpha));
+  }
+
+  .border-app-strong {
+    border-color: rgba(var(--border-soft), calc(var(--border-soft-alpha) + 0.12));
+  }
+
+  .text-secondary {
+    color: rgb(var(--text-secondary));
+  }
+
+  .text-muted-app {
+    color: rgb(var(--text-muted));
+  }
+
+  .bg-input-app {
+    background: rgb(var(--bg-input) / 1);
+  }
+
+  /* C-32: Token tema-adaptável para fundos sub-element */
+  .bg-surface-subtle {
+    background: var(--surface-highlight);
+  }
+}

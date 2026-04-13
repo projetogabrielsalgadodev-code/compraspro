@@ -1,0 +1,17 @@
+{
+  "name": "compras-pro",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
+    "dev:web": "npm run dev --workspace @compras-pro/web",
+    "dev:api": "cd python-api && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "build:web": "npm run build --workspace @compras-pro/web",
+    "lint:web": "npm run lint --workspace @compras-pro/web"
+  }
+}

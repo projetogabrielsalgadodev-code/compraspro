@@ -1,0 +1,47 @@
+# ─── Dependencies ────────────────────────────────────────────────────────
+node_modules/
+apps/web/node_modules/
+package-lock.json
+
+# ─── Next.js ─────────────────────────────────────────────────────────────
+.next/
+apps/web/.next/
+out/
+
+# ─── Environment / Secrets ───────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+python-api/.env
+
+# ─── Python ──────────────────────────────────────────────────────────────
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+*.pyc
+*.pyo
+*.pyd
+
+# ─── Data files (large, do not commit) ───────────────────────────────────
+*.xlsx
+*.csv
+*.xls
+
+# ─── Build / Dist ────────────────────────────────────────────────────────
+dist/
+coverage/
+*.tsbuildinfo
+
+# ─── IDE / OS ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ─── Project docs / scratch (optional, não essenciais) ───────────────────
+dev.log
+doc_dump.txt
+test_api.py
+consolidacao_chats_1_a_5.md
+Prototipo FigmaMAKE/
