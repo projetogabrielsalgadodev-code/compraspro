@@ -324,7 +324,6 @@ def criar_agente_analise(empresa_id: str, model_id: str | None = None) -> Agent:
         # parsear automaticamente. Fazemos o parsing manualmente abaixo.
         session_state={"empresa_id": empresa_id},
         markdown=False,
-        show_tool_calls=False,
     )
     return agent
 
