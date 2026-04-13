@@ -44,7 +44,6 @@ export async function login(formData: FormData) {
     return { error: error.message }
   }
 
-  // Verificar o papel do usuario e redirecionar pra area admin de forma padrao
-  revalidatePath('/admin', 'layout')
-  redirect('/admin/empresas')
+  revalidatePath('/', 'layout')
+  redirect('/home')
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, ChevronLeft, ClipboardList, Cog, Home, Package, X } from "lucide-react";
+import { BarChart3, Building2, ChevronLeft, ClipboardList, Cog, Home, Package, ShieldCheck, Users, X } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -14,15 +14,46 @@ const items = [
   { href: "/configuracoes", label: "Configurações", icon: Cog }
 ];
 
+const adminItems = [
+  { href: "/admin/empresas", label: "Empresas", icon: Building2 },
+  { href: "/admin/usuarios", label: "Usuários", icon: Users },
+];
+
 interface SidebarProps {
   collapsed: boolean;
   mobileOpen: boolean;
   onToggleCollapse: () => void;
   onCloseMobile: () => void;
+  isAdmin?: boolean;
 }
 
-export function Sidebar({ collapsed, mobileOpen, onToggleCollapse, onCloseMobile }: SidebarProps) {
+export function Sidebar({ collapsed, mobileOpen, onToggleCollapse, onCloseMobile, isAdmin = false }: SidebarProps) {
   const pathname = usePathname();
+
+  const renderNavItem = (item: typeof items[0]) => {
+    const Icon = item.icon;
+    const ativo = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={onCloseMobile}
+        /* C-21: aria-current="page" para acessibilidade de leitores de tela */
+        aria-current={ativo ? "page" : undefined}
+        className={cn(
+          "flex items-center gap-3 rounded-2xl px-4 py-3.5 text-base font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria focus-visible:ring-offset-2 focus-visible:ring-offset-fundo lg:text-sm",
+          ativo
+            ? "bg-[linear-gradient(180deg,rgb(var(--accent-primary) / 0.22),rgb(var(--accent-primary) / 0.08))] text-texto ring-app shadow-[inset_0_1px_0_var(--surface-inset)]"
+            : "text-texto/88 hover:bg-[linear-gradient(180deg,rgb(var(--bg-card) / 0.96),rgb(var(--bg-input) / 0.94))] hover:text-texto"
+        )}
+      >
+        <span className={cn("ds-icon-chip h-11 w-11 shrink-0", ativo ? "bg-[linear-gradient(180deg,rgb(var(--accent-primary) / 0.30),rgb(var(--accent-primary) / 0.12))] text-primariaapp" : "bg-[linear-gradient(180deg,rgb(var(--bg-card) / 0.98),rgb(var(--bg-input) / 0.95))] text-primariaapp") }>
+          <Icon className="h-5 w-5 lg:h-4 lg:w-4" />
+        </span>
+        {!collapsed ? item.label : null}
+      </Link>
+    );
+  };
 
   return (
     <>
@@ -55,31 +86,27 @@ export function Sidebar({ collapsed, mobileOpen, onToggleCollapse, onCloseMobile
             </button>
           </div>
         </div>
-        <nav className="space-y-2">
-          {items.map((item) => {
-            const Icon = item.icon;
-            const ativo = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onCloseMobile}
-                /* C-21: aria-current="page" para acessibilidade de leitores de tela */
-                aria-current={ativo ? "page" : undefined}
-                className={cn(
-                  "flex items-center gap-3 rounded-2xl px-4 py-3.5 text-base font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria focus-visible:ring-offset-2 focus-visible:ring-offset-fundo lg:text-sm",
-                  ativo
-                    ? "bg-[linear-gradient(180deg,rgb(var(--accent-primary) / 0.22),rgb(var(--accent-primary) / 0.08))] text-texto ring-app shadow-[inset_0_1px_0_var(--surface-inset)]"
-                    : "text-texto/88 hover:bg-[linear-gradient(180deg,rgb(var(--bg-card) / 0.96),rgb(var(--bg-input) / 0.94))] hover:text-texto"
+        <nav className="space-y-2 flex-1 overflow-y-auto">
+          {items.map(renderNavItem)}
+
+          {/* Seção Admin — visível somente para admins */}
+          {isAdmin && (
+            <>
+              <div className={cn("ds-shell-line relative mt-6 mb-4 pt-4", collapsed && "mt-4 mb-2 pt-2")}>
+                {!collapsed ? (
+                  <div className="flex items-center gap-2 px-1">
+                    <ShieldCheck className="h-3.5 w-3.5 text-primariaapp" />
+                    <span className="ds-eyebrow">Administração</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-center">
+                    <ShieldCheck className="h-4 w-4 text-primariaapp" />
+                  </div>
                 )}
-              >
-                <span className={cn("ds-icon-chip h-11 w-11 shrink-0", ativo ? "bg-[linear-gradient(180deg,rgb(var(--accent-primary) / 0.30),rgb(var(--accent-primary) / 0.12))] text-primariaapp" : "bg-[linear-gradient(180deg,rgb(var(--bg-card) / 0.98),rgb(var(--bg-input) / 0.95))] text-primariaapp") }>
-                  <Icon className="h-5 w-5 lg:h-4 lg:w-4" />
-                </span>
-                {!collapsed ? item.label : null}
-              </Link>
-            );
-          })}
+              </div>
+              {adminItems.map(renderNavItem)}
+            </>
+          )}
         </nav>
         <div className={cn("ds-subpanel mt-auto rounded-[24px] px-4 py-4", mobileOpen && "bg-[linear-gradient(180deg,rgb(var(--bg-card) / 0.98),rgb(var(--bg-input) / 0.95))]", collapsed && "lg:px-3") }>
           {!collapsed ? (

@@ -4,8 +4,6 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
-// Como as operações de empresa são feitas por Admins logados, a RLS permite acesso,
-// podemos usar a chave ANON pois o middleware já validou que o usuário é admin via role
 const getSupabase = () => {
   const cookieStore = cookies()
   return createServerClient(
@@ -32,7 +30,7 @@ export async function getEmpresas() {
     return []
   }
 
-  // Busca tbm a contagem de usuários por empresa pra exibir na grid
+  // Busca a contagem de usuários por empresa pra exibir no card
   const { data: users } = await supabase.from('perfis').select('empresa_id')
   
   const empresasComConta = data.map(empresa => {
@@ -47,9 +45,14 @@ export async function getEmpresas() {
 }
 
 export async function upsertEmpresa(formData: FormData) {
-  const id = formData.get('id') as string // Se vazio, é criação
+  const id = formData.get('id') as string
   const nome = formData.get('nome') as string
   const cnpj = formData.get('cnpj') as string
+  const razao_social = formData.get('razao_social') as string
+  const telefone = formData.get('telefone') as string
+  const email = formData.get('email') as string
+  const endereco = formData.get('endereco') as string
+  const ativo = formData.get('ativo') !== 'false'
 
   if (!nome || !cnpj) {
     return { error: 'Nome e CNPJ são obrigatórios.' }
@@ -57,8 +60,7 @@ export async function upsertEmpresa(formData: FormData) {
 
   const supabase = getSupabase()
 
-  // Evita enviar strings vazias como IDs (Supabase ignora upsert sem id válido ou crasha)
-  const payload: any = { nome, cnpj }
+  const payload: any = { nome, cnpj, razao_social, telefone, email, endereco, ativo }
   if (id) {
     payload.id = id
   }
@@ -82,5 +84,20 @@ export async function deleteEmpresa(id: string) {
   }
 
   revalidatePath('/admin/empresas')
-  return { success: 'Empresa desativada/removida com sucesso!' }
+  return { success: 'Empresa removida com sucesso!' }
+}
+
+export async function toggleEmpresaAtivo(id: string, ativo: boolean) {
+  const supabase = getSupabase()
+  const { error } = await supabase
+    .from('empresas')
+    .update({ ativo })
+    .eq('id', id)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/admin/empresas')
+  return { success: ativo ? 'Empresa reativada!' : 'Empresa desativada!' }
 }

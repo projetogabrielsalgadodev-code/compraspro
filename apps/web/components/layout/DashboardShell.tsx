@@ -5,7 +5,7 @@ import { PanelLeftOpen } from "lucide-react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { cn } from "@/lib/utils";
 
-export function DashboardShell({ children }: { children: React.ReactNode }) {
+export function DashboardShell({ children, isAdmin = false }: { children: React.ReactNode; isAdmin?: boolean }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -16,6 +16,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         mobileOpen={mobileMenuOpen}
         onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
         onCloseMobile={() => setMobileMenuOpen(false)}
+        isAdmin={isAdmin}
       />
       <main
         className={cn(

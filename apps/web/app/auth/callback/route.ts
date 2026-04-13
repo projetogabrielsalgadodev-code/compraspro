@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   
   // se existe um `next` param, senão default p/ root
-  const next = searchParams.get('next') ?? '/'
+  const next = searchParams.get('next') ?? '/home'
 
   if (code) {
     const cookieStore = cookies()

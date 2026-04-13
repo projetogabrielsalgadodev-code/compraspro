@@ -20,18 +20,26 @@ const getSupabase = () => {
   )
 }
 
-export async function getUsers() {
+export async function getUsers(empresaId?: string) {
   const supabase = getSupabase()
-  const { data, error } = await supabase
+
+  let query = supabase
     .from('perfis')
     .select(`
       id, 
       nome, 
       papel, 
+      empresa_id,
       created_at, 
       empresas ( id, nome )
     `)
     .order('created_at', { ascending: false })
+
+  if (empresaId) {
+    query = query.eq('empresa_id', empresaId)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     console.error('Erro ao buscar usuários:', error)
@@ -53,14 +61,45 @@ export async function getUsers() {
   return usuariosComEmail
 }
 
+export async function getEmpresasList() {
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('empresas')
+    .select('id, nome')
+    .eq('ativo', true)
+    .order('nome')
+
+  if (error) {
+    console.error('Erro ao buscar empresas:', error)
+    return []
+  }
+  return data
+}
+
+export async function getEmpresaById(id: string) {
+  const supabase = getSupabase()
+  const { data, error } = await supabase
+    .from('empresas')
+    .select('id, nome')
+    .eq('id', id)
+    .single()
+
+  if (error) return null
+  return data
+}
+
 export async function inviteUser(formData: FormData) {
   const email = formData.get('email') as string
   const nome = formData.get('nome') as string
-  const papel = formData.get('papel') as string // 'admin' ou 'funcionario'
-  const empresaId = formData.get('empresa_id') as string // opcional, caso estritamente funcionário de uma. Por enquanto null.
+  const papel = formData.get('papel') as string
+  const empresaId = formData.get('empresa_id') as string
 
   if (!email || !nome) {
     return { error: 'E-mail e nome são obrigatórios' }
+  }
+
+  if (!empresaId) {
+    return { error: 'Selecione uma empresa para vincular este usuário.' }
   }
 
   // 1. Invitar o usuário via Supabase Auth Admin
@@ -77,17 +116,11 @@ export async function inviteUser(formData: FormData) {
   const userId = inviteData.user.id
 
   // 2. Criar ou Atualizar no public.perfis
-  // (A trigger do BD pode já ter criado o perfil pelo JWT raw_user_meta_data.nome,
-  // então fazemos um upsert para garantir a Role)
-  
   const updateData: any = {
      id: userId,
      nome: nome,
-     papel: papel || 'funcionario'
-  }
-
-  if (empresaId) {
-     updateData.empresa_id = empresaId
+     papel: papel || 'funcionario',
+     empresa_id: empresaId,
   }
 
   const { error: profileError } = await supabaseAdmin
@@ -114,6 +147,20 @@ export async function updateRole(userId: string, newRole: string) {
    
    revalidatePath('/admin/usuarios')
    return { success: 'Permissão atualizada com sucesso!' }
+}
+
+export async function updateUserEmpresa(userId: string, empresaId: string) {
+   const { error } = await supabaseAdmin
+     .from('perfis')
+     .update({ empresa_id: empresaId || null })
+     .eq('id', userId)
+
+   if (error) {
+     return { error: error.message }
+   }
+   
+   revalidatePath('/admin/usuarios')
+   return { success: 'Empresa atualizada com sucesso!' }
 }
 
 export async function deleteUser(userId: string) {
