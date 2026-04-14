@@ -164,6 +164,17 @@ export async function inviteUser(formData: FormData) {
      return { error: 'Usuário convidado, mas houve erro ao definir a permissão: ' + profileError.message }
   }
 
+  // 3. Setar empresa_id no app_metadata do Auth para o JWT conter essa info
+  // (o FastAPI extrai empresa_id do JWT, não do banco)
+  const { error: metadataError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    app_metadata: { empresa_id: empresaId },
+  })
+
+  if (metadataError) {
+    console.error('[inviteUser] Erro ao setar app_metadata:', metadataError.message)
+    // Não bloqueia — o perfil já foi criado, mas loga o erro
+  }
+
   revalidatePath('/admin/usuarios')
   return { success: `Convite enviado com sucesso para ${email}` }
 }
