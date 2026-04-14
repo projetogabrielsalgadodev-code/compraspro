@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
+const INTERNAL_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
 export async function POST(request: Request) {
   try {
-    // Injetar empresa_id da sessão do usuário logado
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -29,15 +29,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Obter access_token para repassar ao FastAPI (que agora exige JWT)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      return NextResponse.json(
-        { error: "Sessão expirada. Faça login novamente." },
-        { status: 401 }
-      );
-    }
-
     const payload = await request.json();
 
     if (!payload.texto_bruto?.trim()) {
@@ -55,11 +46,14 @@ export async function POST(request: Request) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120_000);
 
+    // Autenticação service-to-service via chave interna
     const response = await fetch(`${FASTAPI_URL}/api/ofertas/analisar`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.access_token}`,
+        "X-Internal-Key": INTERNAL_KEY,
+        "X-Empresa-Id": perfil.empresa_id,
+        "X-User-Id": user.id,
       },
       body: JSON.stringify(payload),
       cache: "no-store",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
+const INTERNAL_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
 export async function POST(request: Request) {
   try {
@@ -10,12 +11,6 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 });
-    }
-
-    // Obter access_token para repassar ao FastAPI (que agora exige JWT)
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      return NextResponse.json({ error: "Sessão expirada. Faça login novamente." }, { status: 401 });
     }
 
     const { data: perfil } = await supabase
@@ -34,15 +29,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "texto_bruto é obrigatório." }, { status: 400 });
     }
 
+    // Injetar dados validados do banco (NÃO do client-side)
     payload.empresa_id = perfil.empresa_id;
     payload.usuario_id = user.id;
 
-    // SEGURANÇA: Forward do Bearer token para o FastAPI (obrigatório após hardening)
+    // Autenticação service-to-service: chave interna + empresa_id/user_id via headers
     const response = await fetch(`${FASTAPI_URL}/api/ofertas/analisar-async`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.access_token}`,
+        "X-Internal-Key": INTERNAL_KEY,
+        "X-Empresa-Id": perfil.empresa_id,
+        "X-User-Id": user.id,
       },
       body: JSON.stringify(payload),
       cache: "no-store",
