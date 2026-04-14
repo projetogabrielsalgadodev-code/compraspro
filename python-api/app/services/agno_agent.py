@@ -372,6 +372,7 @@ async def executar_analise_oferta(
     texto_bruto: str,
     empresa_id: str,
     model_id: str | None = None,
+    dados_arquivo: str | None = None,
 ) -> tuple[AnaliseOfertaAgnoOutput, dict]:
     """
     Executa a análise de oferta completa usando o agente Agno.
@@ -382,7 +383,40 @@ async def executar_analise_oferta(
     """
     agent = criar_agente_analise(empresa_id, model_id)
 
-    prompt = f"""Analise a seguinte oferta de fornecedor e processe cada item conforme o fluxo obrigatório.
+    # Montar prompt baseado na fonte de dados
+    if dados_arquivo:
+        # Modo ARQUIVO: dados do arquivo injetados no prompt, usar tools apenas para complementar
+        prompt = f"""Analise a seguinte oferta de fornecedor comparando com os dados históricos do arquivo enviado pelo cliente.
+
+--- OFERTA DO FORNECEDOR ---
+{texto_bruto}
+--- FIM DA OFERTA ---
+
+--- DADOS HISTÓRICOS DO ARQUIVO DO CLIENTE ---
+{dados_arquivo}
+--- FIM DOS DADOS HISTÓRICOS ---
+
+INSTRUÇÕES ESPECIAIS (MODO ARQUIVO):
+- Use os dados do arquivo acima como fonte PRIMÁRIA de referência para histórico de preços.
+- Para cada item da oferta, procure o EAN correspondente nos dados do arquivo.
+- O "menor_historico" deve ser o menor preço unitário encontrado no arquivo para aquele EAN.
+- Use a média de preço do arquivo para calcular a variação percentual.
+- Você pode usar as tools `buscar_produto_estoque` e `buscar_equivalentes` para complementar com dados de estoque e equivalentes do catálogo.
+- Se não encontrar o EAN no arquivo, use confianca_match="baixo".
+- Calcule a demanda_mes a partir do total de unidades do arquivo dividido pelo número de meses de cobertura dos dados.
+
+Para cada item identificado na oferta:
+1. Busque o EAN correspondente nos dados do arquivo acima
+2. Compare o preço da oferta com o menor/média histórico do arquivo
+3. Use `buscar_produto_estoque` para obter estoque atual e `buscar_equivalentes` para equivalentes
+4. Classifique a oferta conforme as regras
+5. Gere uma recomendação contextualizada
+
+Após analisar TODOS os itens, retorne APENAS o bloco JSON com o resultado completo."""
+        logger.info(f"Modo ARQUIVO: dados do arquivo injetados no prompt ({len(dados_arquivo)} chars)")
+    else:
+        # Modo BANCO DE DADOS: fluxo padrão com tools consultando Supabase
+        prompt = f"""Analise a seguinte oferta de fornecedor e processe cada item conforme o fluxo obrigatório.
 
 --- OFERTA DO FORNECEDOR ---
 {texto_bruto}

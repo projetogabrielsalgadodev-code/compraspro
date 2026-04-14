@@ -6,6 +6,8 @@ import {
   ArrowRight,
   CheckCircle2,
   ClipboardList,
+  Database,
+  FileSpreadsheet,
   Loader2,
   Sparkles,
   XCircle,
@@ -15,9 +17,18 @@ import { BancoDadosUpload } from "@/components/oferta/BancoDadosUpload";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 const EMPRESA_ID_PADRAO = process.env.NEXT_PUBLIC_EMPRESA_ID_PADRAO ?? null;
+
+type FonteDados = "banco" | "arquivo";
 
 interface OfertaComposerProps {
   eyebrow: string;
@@ -164,6 +175,7 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
   const [fornecedor, setFornecedor] = useState("");
   const [arquivoBanco, setArquivoBanco] = useState<File | null>(null);
   const [bancoPersistido, setBancoPersistido] = useState(false);
+  const [fonteDados, setFonteDados] = useState<FonteDados>("banco");
   const [isLoading, setIsLoading] = useState(false);
   const [modal, setModal] = useState<ModalState>(null);
   const [erroMsg, setErroMsg] = useState<string | undefined>(undefined);
@@ -197,24 +209,52 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
         setBancoPersistido(true);
       }
 
-      const payload: Record<string, unknown> = {
-        texto_bruto: textoBruto,
-        empresa_id: EMPRESA_ID_PADRAO,
-      };
-      if (fornecedor.trim()) {
-        payload.fornecedor_informado = fornecedor.trim();
-      }
+      if (fonteDados === "arquivo") {
+        // ─── Modo ARQUIVO: enviar via FormData (multipart) ───────────────
+        if (!arquivoBanco) {
+          throw new Error("Selecione um arquivo para análise no modo 'Usar dados do arquivo'.");
+        }
 
-      const response = await fetch("/api/ofertas/analisar-async", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+        const formData = new FormData();
+        formData.append("texto_bruto", textoBruto);
+        formData.append("fonte_dados", "arquivo");
+        formData.append("arquivo", arquivoBanco, arquivoBanco.name);
+        if (fornecedor.trim()) {
+          formData.append("fornecedor_informado", fornecedor.trim());
+        }
 
-      if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        const detail = (body as any)?.detail ? ` (${(body as any).detail})` : '';
-        throw new Error(((body as { error?: string })?.error ?? "Não foi possível iniciar a análise.") + detail);
+        const response = await fetch("/api/ofertas/analisar-async-file", {
+          method: "POST",
+          body: formData,
+          // NÃO setar Content-Type — o browser seta automaticamente com boundary
+        });
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          const detail = (body as any)?.detail ? ` (${(body as any).detail})` : '';
+          throw new Error(((body as { error?: string })?.error ?? "Não foi possível iniciar a análise.") + detail);
+        }
+      } else {
+        // ─── Modo BANCO DE DADOS: enviar via JSON (fluxo original) ───────
+        const payload: Record<string, unknown> = {
+          texto_bruto: textoBruto,
+          empresa_id: EMPRESA_ID_PADRAO,
+        };
+        if (fornecedor.trim()) {
+          payload.fornecedor_informado = fornecedor.trim();
+        }
+
+        const response = await fetch("/api/ofertas/analisar-async", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          const detail = (body as any)?.detail ? ` (${(body as any).detail})` : '';
+          throw new Error(((body as { error?: string })?.error ?? "Não foi possível iniciar a análise.") + detail);
+        }
       }
 
       // Sucesso — limpar formulário e mostrar modal
@@ -231,6 +271,10 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
       setIsLoading(false);
     }
   };
+
+  const podeSubmeter = fonteDados === "arquivo"
+    ? textoBruto.trim() && arquivoBanco
+    : textoBruto.trim();
 
   return (
     <>
@@ -261,6 +305,72 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* ─── Dropdown: Fonte de dados ─────────────────────────────────── */}
+          <div className="ds-subpanel rounded-[24px] p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <p className="ds-eyebrow">Fonte de dados para análise</p>
+                <p className="mt-1 text-sm text-secondary">
+                  Escolha se a IA deve comparar a oferta com o banco de dados interno ou com os dados do arquivo enviado.
+                </p>
+              </div>
+              <span className="ds-icon-chip shrink-0 text-primariaapp">
+                {fonteDados === "banco" ? (
+                  <Database className="h-5 w-5" />
+                ) : (
+                  <FileSpreadsheet className="h-5 w-5" />
+                )}
+              </span>
+            </div>
+            <div className="mt-3">
+              <Select
+                value={fonteDados}
+                onValueChange={(val: FonteDados) => setFonteDados(val)}
+              >
+                <SelectTrigger
+                  id="fonte-dados-select"
+                  className="h-12 rounded-2xl border-app bg-[rgb(var(--bg-input))] text-sm font-medium text-texto"
+                >
+                  <SelectValue placeholder="Selecione a fonte de dados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="banco">
+                    <span className="flex items-center gap-2">
+                      <Database className="h-4 w-4 text-primariaapp" />
+                      Usar banco de dados
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="arquivo">
+                    <span className="flex items-center gap-2">
+                      <FileSpreadsheet className="h-4 w-4 text-primariaapp" />
+                      Usar dados do arquivo enviado
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Descrição contextual */}
+            <div className="mt-3 rounded-xl border border-app bg-[rgb(var(--bg-card-strong))] px-4 py-3">
+              {fonteDados === "banco" ? (
+                <p className="text-xs text-secondary leading-relaxed">
+                  <span className="font-semibold text-texto">Modo Banco de Dados:</span>{" "}
+                  A IA consultará o catálogo de produtos, histórico de preços e estoque cadastrados no sistema para comparar com a oferta.
+                </p>
+              ) : (
+                <p className="text-xs text-secondary leading-relaxed">
+                  <span className="font-semibold text-texto">Modo Arquivo:</span>{" "}
+                  A IA utilizará os dados do arquivo enviado (CSV, XLSX) como referência histórica de preços. Ideal para comparar com uma base própria ou atualizada do cliente.
+                  {!arquivoBanco && (
+                    <span className="block mt-1 text-amber-400/80 font-medium">
+                      ⚠ Selecione um arquivo abaixo para usar este modo.
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
             <div className="space-y-4">
               <div>
@@ -299,14 +409,20 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
                 sessionStorage.removeItem("banco_cliente_importado");
                 setBancoPersistido(false);
               }}
-              titulo="Banco do cliente"
-              descricao="Importe CSV, XLSX, XLS, XML, TXT, ZIP e outras exportacoes comuns para enriquecer a analise."
+              titulo={fonteDados === "arquivo" ? "Arquivo de dados (obrigatório)" : "Banco do cliente"}
+              descricao={
+                fonteDados === "arquivo"
+                  ? "Importe o arquivo CSV ou XLSX com o histórico de preços que será usado como base de comparação pela IA."
+                  : "Importe CSV, XLSX, XLS, XML, TXT, ZIP e outras exportacoes comuns para enriquecer a analise."
+              }
             />
           </div>
 
           <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
             <p className="text-sm text-secondary">
-              A analise compara preco ofertado, menor historico, estoque atual, equivalentes e sugestao de pedido.{" "}
+              {fonteDados === "arquivo"
+                ? "A análise comparará o preço ofertado com os dados do arquivo enviado, complementando com estoque e equivalentes do catálogo."
+                : "A analise compara preco ofertado, menor historico, estoque atual, equivalentes e sugestao de pedido."}{" "}
               {EMPRESA_ID_PADRAO
                 ? "As configuracoes da empresa conectada tambem entram na classificacao."
                 : "Defina `NEXT_PUBLIC_EMPRESA_ID_PADRAO` para usar configuracoes reais da empresa na classificacao."}
@@ -314,7 +430,7 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
             <div className="sticky bottom-3 z-10 rounded-[24px] bg-[linear-gradient(180deg,rgb(var(--bg-card) / 0.82),rgb(var(--bg-card-strong) / 0.94))] p-2 backdrop-blur md:static md:bg-none md:p-0 md:backdrop-blur-0">
               <Button
                 className="h-14 w-full gap-2 rounded-2xl text-base px-6 md:min-w-[220px] md:w-auto"
-                disabled={!textoBruto.trim() || isLoading}
+                disabled={!podeSubmeter || isLoading}
                 onClick={onSubmit}
               >
                 {isLoading ? (

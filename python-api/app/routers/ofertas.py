@@ -18,7 +18,7 @@ import logging
 from collections import Counter
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 
 from app.db.supabase_client import get_settings, get_supabase_client
 from app.middleware import get_current_empresa_id, get_current_user_id
@@ -31,6 +31,7 @@ from app.models.schemas import (
     ResumoAnalise,
 )
 from app.services.agno_agent import executar_analise_oferta
+from app.services.file_parser import format_file_data_for_prompt, parse_uploaded_file
 from app.services.persistencia_service import salvar_analise, salvar_itens_analise
 
 logger = logging.getLogger(__name__)
@@ -73,11 +74,13 @@ async def _executar_e_persistir(
     texto_bruto: str,
     fornecedor_informado: str | None,
     is_async: bool = False,
+    dados_arquivo: str | None = None,
 ) -> OfertaAnalyzeResponse:
     """Executa a análise Agno e persiste no Supabase. Retorna o response completo."""
     resultado_agno, metrics = await executar_analise_oferta(
         texto_bruto=texto_bruto,
         empresa_id=empresa_id,
+        dados_arquivo=dados_arquivo,
     )
 
     itens_response = _build_itens_response(resultado_agno)
@@ -161,6 +164,7 @@ async def _background_analise(
     usuario_id: str | None,
     texto_bruto: str,
     fornecedor_informado: str | None,
+    dados_arquivo: str | None = None,
 ):
     """Task executada em background. Atualiza o status no Supabase ao terminar."""
     client = get_supabase_client()
@@ -173,6 +177,7 @@ async def _background_analise(
             texto_bruto=texto_bruto,
             fornecedor_informado=fornecedor_informado,
             is_async=True,
+            dados_arquivo=dados_arquivo,
         )
 
         # Atualizar o registro com o resultado completo e status=concluida
@@ -262,6 +267,105 @@ async def analisar_oferta_async(
         "mensagem": "Análise iniciada. Faça polling em /api/ofertas/status/{analise_id}",
     }
 
+
+# ─── Endpoint 1b: Iniciar análise async com arquivo (multipart) ──────────────
+
+@router.post("/analisar-async-file")
+async def analisar_oferta_async_file(
+    background_tasks: BackgroundTasks,
+    empresa_id: str = Depends(get_current_empresa_id),
+    texto_bruto: str = Form(...),
+    fonte_dados: str = Form("banco"),
+    fornecedor_informado: str = Form(None),
+    usuario_id: str = Form(None),
+    arquivo: UploadFile | None = File(None),
+):
+    """
+    Inicia a análise em background com suporte a upload de arquivo.
+    Aceita multipart/form-data.
+
+    Quando fonte_dados="arquivo", o arquivo enviado é parseado e seus dados
+    são injetados diretamente no prompt do agente IA como referência histórica.
+
+    SEGURANÇA: empresa_id extraído do JWT via dependency injection.
+    """
+    settings = get_settings()
+
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="ANTHROPIC_API_KEY não configurada.",
+        )
+
+    if not texto_bruto or not texto_bruto.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="texto_bruto é obrigatório.",
+        )
+
+    # Parsear arquivo se fonte_dados=arquivo
+    dados_arquivo_str: str | None = None
+    if fonte_dados == "arquivo":
+        if not arquivo:
+            raise HTTPException(
+                status_code=400,
+                detail="Arquivo é obrigatório quando fonte_dados='arquivo'.",
+            )
+        try:
+            file_bytes = await arquivo.read()
+            filename = arquivo.filename or "upload.xlsx"
+            rows = parse_uploaded_file(file_bytes, filename)
+            if not rows:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Nenhum dado encontrado no arquivo enviado.",
+                )
+            dados_arquivo_str = format_file_data_for_prompt(rows)
+            logger.info(f"Arquivo {filename} parseado: {len(rows)} registros → {len(dados_arquivo_str)} chars para prompt")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.exception(f"Erro ao parsear arquivo: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Erro ao processar arquivo: {str(e)}",
+            )
+
+    analise_id = str(uuid4())
+
+    # Criar registro "processando" no banco imediatamente
+    client = get_supabase_client()
+    if client:
+        try:
+            client.table("analises_oferta").insert({
+                "id": analise_id,
+                "empresa_id": empresa_id,
+                "usuario_id": usuario_id,
+                "fornecedor": fornecedor_informado,
+                "origem": "arquivo" if fonte_dados == "arquivo" else "texto",
+                "entrada_bruta": texto_bruto,
+                "status": "processando",
+            }).execute()
+        except Exception as e:
+            logger.warning(f"Falha ao criar registro inicial: {e}")
+
+    # Iniciar análise em background
+    background_tasks.add_task(
+        _background_analise,
+        analise_id=analise_id,
+        empresa_id=empresa_id,
+        usuario_id=usuario_id,
+        texto_bruto=texto_bruto,
+        fornecedor_informado=fornecedor_informado,
+        dados_arquivo=dados_arquivo_str,
+    )
+
+    return {
+        "analise_id": analise_id,
+        "status": "processando",
+        "fonte_dados": fonte_dados,
+        "mensagem": "Análise iniciada. Faça polling em /api/ofertas/status/{analise_id}",
+    }
 
 # ─── Endpoint 2: Polling de status (autenticado) ─────────────────────────────
 
