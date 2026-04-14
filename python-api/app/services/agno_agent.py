@@ -341,10 +341,12 @@ def criar_agente_analise(empresa_id: str, model_id: str | None = None) -> Agent:
     if params_db:
         instructions = params_db.get("prompt_sistema") or SYSTEM_INSTRUCTIONS
         max_tokens_val = params_db.get("max_tokens") or 16384
-        logger.info(f"Usando prompt do banco ({len(instructions)} chars), max_tokens={max_tokens_val}")
+        temperatura = float(params_db.get("temperatura") or 0.2)
+        logger.info(f"Usando prompt do banco ({len(instructions)} chars), max_tokens={max_tokens_val}, temp={temperatura}")
     else:
         instructions = SYSTEM_INSTRUCTIONS
         max_tokens_val = 16384
+        temperatura = 0.2
         logger.info("Usando SYSTEM_INSTRUCTIONS hardcoded (banco indisponível)")
 
     agent = Agent(
@@ -352,6 +354,7 @@ def criar_agente_analise(empresa_id: str, model_id: str | None = None) -> Agent:
             id=modelo,
             api_key=settings.anthropic_api_key,
             max_tokens=max_tokens_val,
+            temperature=temperatura,
         ),
         tools=AGNO_TOOLS,
         instructions=instructions,
