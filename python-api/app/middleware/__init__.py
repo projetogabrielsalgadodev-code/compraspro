@@ -48,14 +48,11 @@ def _decode_supabase_jwt(token: str) -> dict:
         )
 
     try:
-        # Inspecionar o header para diagnóstico
-        try:
-            header = jwt.get_unverified_header(token)
-            logger.debug(f"JWT header: alg={header.get('alg')}, typ={header.get('typ')}")
-        except Exception as e:
-            logger.warning(f"Não foi possível ler header do JWT: {e}")
+        # Log do header para diagnóstico
+        header = jwt.get_unverified_header(token)
+        token_alg = header.get("alg", "unknown")
+        logger.info(f"JWT header: alg={token_alg}, typ={header.get('typ')}")
 
-        # Tentar decodificar com o secret direto
         payload = jwt.decode(
             token,
             jwt_secret,
@@ -63,26 +60,10 @@ def _decode_supabase_jwt(token: str) -> dict:
             audience="authenticated",
         )
         return payload
-    except jwt.InvalidAlgorithmError:
-        # Fallback: tentar com o secret como base64 decoded
-        try:
-            import base64
-            decoded_secret = base64.b64decode(jwt_secret)
-            payload = jwt.decode(
-                token,
-                decoded_secret,
-                algorithms=["HS256"],
-                audience="authenticated",
-            )
-            logger.info("JWT decodificado com secret base64-decoded (fallback)")
-            return payload
-        except Exception as e2:
-            logger.error(f"Fallback base64 também falhou: {e2}")
-            raise HTTPException(status_code=401, detail=f"Token inválido: algoritmo não suportado")
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expirado.")
     except jwt.InvalidTokenError as e:
-        logger.error(f"JWT decode error: {str(e)} | secret_len={len(jwt_secret)} | token_prefix={token[:20]}...")
+        logger.error(f"JWT decode error: {str(e)} | alg_header={token_alg} | secret_len={len(jwt_secret)}")
         raise HTTPException(status_code=401, detail=f"Token inválido: {str(e)}")
 
 
