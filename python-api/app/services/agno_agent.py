@@ -321,7 +321,7 @@ def _buscar_parametros_agente() -> dict | None:
     return None
 
 
-def criar_agente_analise(empresa_id: str, model_id: str | None = None) -> Agent:
+def criar_agente_analise(empresa_id: str, model_id: str | None = None, use_tools: bool = True) -> Agent:
     """Cria e retorna uma instância do agente de análise de ofertas.
 
     Carrega parâmetros (prompt de sistema, max_tokens) da tabela
@@ -331,6 +331,12 @@ def criar_agente_analise(empresa_id: str, model_id: str | None = None) -> Agent:
     NOTA: NÃO usamos response_model pois o Agno/Claude frequentemente retorna
     texto narrativo + JSON em bloco markdown, causando falha no parser automático.
     O parsing é feito manualmente por _extrair_json_de_string.
+    
+    Args:
+        empresa_id: ID da empresa para session_state.
+        model_id: Override do modelo Claude (opcional).
+        use_tools: Se True, inclui tools para consultar Supabase. Se False,
+                   cria agente sem tools (modo arquivo).
     """
     settings = get_settings()
     modelo = model_id or settings.anthropic_model or "claude-sonnet-4-5-20250929"
@@ -356,13 +362,14 @@ def criar_agente_analise(empresa_id: str, model_id: str | None = None) -> Agent:
             max_tokens=max_tokens_val,
             temperature=temperatura,
         ),
-        tools=AGNO_TOOLS,
+        tools=AGNO_TOOLS if use_tools else [],
         instructions=instructions,
         # SEM response_model — o Claude retorna texto+JSON que o Agno não consegue
         # parsear automaticamente. Fazemos o parsing manualmente abaixo.
         session_state={"empresa_id": empresa_id},
         markdown=False,
     )
+    logger.info(f"Agente criado: modelo={modelo}, tools={'SIM' if use_tools else 'NÃO'}")
     return agent
 
 
@@ -381,11 +388,12 @@ async def executar_analise_oferta(
         Tuple of (AnaliseOfertaAgnoOutput, metrics_dict).
         metrics_dict contains: tempo_processamento_ms, tokens_utilizados, custo_reais.
     """
-    agent = criar_agente_analise(empresa_id, model_id)
-
     # Montar prompt baseado na fonte de dados
     if dados_arquivo:
-        # Modo ARQUIVO: dados do arquivo injetados no prompt, usar tools apenas para complementar
+        # Modo ARQUIVO: agente SEM tools — todos os dados vêm do arquivo
+        # Sem tools, o Claude foca em analisar os dados e retornar JSON puro
+        agent = criar_agente_analise(empresa_id, model_id, use_tools=False)
+        
         prompt = f"""Analise a seguinte oferta de fornecedor comparando com os dados históricos do arquivo enviado pelo cliente.
 
 --- OFERTA DO FORNECEDOR ---
@@ -397,25 +405,28 @@ async def executar_analise_oferta(
 --- FIM DOS DADOS HISTÓRICOS ---
 
 INSTRUÇÕES ESPECIAIS (MODO ARQUIVO):
-- Use os dados do arquivo acima como fonte PRIMÁRIA de referência para histórico de preços.
-- Para cada item da oferta, procure o EAN correspondente nos dados do arquivo.
-- O "menor_historico" deve ser o menor preço unitário encontrado no arquivo para aquele EAN.
-- Use a média de preço do arquivo para calcular a variação percentual.
-- Você pode usar as tools `buscar_produto_estoque` e `buscar_equivalentes` para complementar com dados de estoque e equivalentes do catálogo.
-- Se não encontrar o EAN no arquivo, use confianca_match="baixo".
+- Use os dados do arquivo acima como fonte PRIMÁRIA e ÚNICA de referência para histórico de preços.
+- NÃO chame nenhuma tool/função. Todos os dados necessários estão no arquivo acima.
+- Para cada item da oferta, procure o EAN ou descrição correspondente nos dados do arquivo.
+- O "menor_historico" deve ser o menor preço unitário encontrado no arquivo para aquele EAN/produto.
+- Use a média de preço do arquivo para calcular a variacao_percentual: ((media - preco_oferta) / media) * 100.
+- Se variacao_percentual > 0, significa desconto (oferta mais barata que a média).
+- Se não encontrar o EAN/produto no arquivo, use confianca_match="baixo" e menor_historico=null.
 - Calcule a demanda_mes a partir do total de unidades do arquivo dividido pelo número de meses de cobertura dos dados.
+- Defina estoque_item=0 e estoque_equivalentes=0 (dados não disponíveis no arquivo).
+- sugestao_pedido=0 quando não há dados suficientes.
 
 Para cada item identificado na oferta:
-1. Busque o EAN correspondente nos dados do arquivo acima
+1. Busque o EAN/descrição correspondente nos dados do arquivo acima
 2. Compare o preço da oferta com o menor/média histórico do arquivo
-3. Use `buscar_produto_estoque` para obter estoque atual e `buscar_equivalentes` para equivalentes
-4. Classifique a oferta conforme as regras
-5. Gere uma recomendação contextualizada
+3. Classifique a oferta conforme as regras do sistema
+4. Gere uma recomendação contextualizada
 
-Após analisar TODOS os itens, retorne APENAS o bloco JSON com o resultado completo."""
+APÓS ANALISAR TODOS OS ITENS, RETORNE **APENAS** O JSON PURO (sem texto, sem explicação, sem markdown)."""
         logger.info(f"Modo ARQUIVO: dados do arquivo injetados no prompt ({len(dados_arquivo)} chars)")
     else:
         # Modo BANCO DE DADOS: fluxo padrão com tools consultando Supabase
+        agent = criar_agente_analise(empresa_id, model_id, use_tools=True)
         prompt = f"""Analise a seguinte oferta de fornecedor e processe cada item conforme o fluxo obrigatório.
 
 --- OFERTA DO FORNECEDOR ---
@@ -600,11 +611,107 @@ Após analisar TODOS os itens, retorne APENAS o bloco JSON com o resultado compl
                     except Exception:
                         pass
 
+    # ─── Caso 6: RETRY — pedir ao agente para formatar o JSON corretamente ────
+    logger.warning(
+        f"Parsing inicial falhou. Tentando retry com prompt de formatação. "
+        f"content type={type(content).__name__}, preview={str(content)[:500]}"
+    )
+    try:
+        retry_result = await _retry_json_formatting(agent, content)
+        if retry_result is not None:
+            return retry_result, metrics_dict
+    except Exception as retry_err:
+        logger.warning(f"Retry de formatação também falhou: {retry_err}")
+
     logger.error(
-        f"Não foi possível extrair AnaliseOfertaAgnoOutput. "
-        f"content type={type(content).__name__}, value={str(content)[:500]}"
+        f"Não foi possível extrair AnaliseOfertaAgnoOutput após retry. "
+        f"content type={type(content).__name__}, value={str(content)[:1000]}"
     )
     raise ValueError(
         f"O agente retornou uma resposta em formato inesperado ({type(content).__name__}). "
         "Verifique os logs para detalhes."
     )
+
+
+async def _retry_json_formatting(agent: Agent, original_content: Any) -> AnaliseOfertaAgnoOutput | None:
+    """Envia um prompt de retry pedindo ao agente para formatar o JSON corretamente.
+
+    Quando o agente retorna texto narrativo (comum com contextos grandes ou
+    erros de tools), tentamos fazer um segundo chamado curto pedindo apenas o JSON.
+    """
+    content_str = str(original_content)[:8000]  # limitar para não estourar contexto
+
+    retry_prompt = f"""Sua resposta anterior continha texto narrativo mas eu preciso APENAS do JSON estruturado.
+
+Aqui está sua resposta anterior:
+---
+{content_str}
+---
+
+Extraia os dados da sua resposta acima e retorne APENAS um JSON puro (sem markdown, sem texto explicativo) no formato:
+{{
+  "fornecedor": "nome ou null",
+  "itens": [
+    {{
+      "descricao_original": "...",
+      "preco_oferta": 0.00,
+      "ean": "... ou null",
+      "descricao_produto": "... ou null",
+      "menor_historico": 0.00,
+      "variacao_percentual": 0.0,
+      "estoque_item": 0,
+      "demanda_mes": 0.0,
+      "sugestao_pedido": 0,
+      "estoque_equivalentes": 0,
+      "classificacao": "ouro|prata|atencao|descartavel",
+      "confianca_match": "alto|medio|baixo",
+      "recomendacao": "...",
+      "equivalentes": []
+    }}
+  ]
+}}
+
+RETORNE APENAS O JSON ACIMA, SEM NENHUM TEXTO ANTES OU DEPOIS."""
+
+    logger.info("Executando retry de formatação JSON...")
+    retry_response = await agent.arun(retry_prompt)
+    retry_content = retry_response.content
+    logger.info(f"Retry response type={type(retry_content).__name__}, preview={str(retry_content)[:300]}")
+
+    if isinstance(retry_content, str) and retry_content.strip():
+        data = _extrair_json_de_string(retry_content)
+        if data is not None:
+            data = _normalizar_output(data)
+            try:
+                result = AnaliseOfertaAgnoOutput(**data)
+                logger.info("Retry de formatação JSON: SUCESSO")
+                return result
+            except Exception as e:
+                logger.warning(f"Retry: JSON extraído mas schema falhou: {e}")
+                # Tentar com itens individuais
+                try:
+                    from app.models.schemas import ItemAnaliseAgno
+                    itens_validos = []
+                    for item_raw in data.get("itens", []):
+                        try:
+                            itens_validos.append(ItemAnaliseAgno(**_normalizar_item(item_raw)))
+                        except Exception:
+                            pass
+                    if itens_validos:
+                        result = AnaliseOfertaAgnoOutput(
+                            fornecedor=data.get("fornecedor"),
+                            itens=itens_validos,
+                        )
+                        logger.info(f"Retry: construído com {len(itens_validos)} itens individuais")
+                        return result
+                except Exception:
+                    pass
+
+    if isinstance(retry_content, dict) and "itens" in retry_content:
+        try:
+            return AnaliseOfertaAgnoOutput(**retry_content)
+        except Exception:
+            pass
+
+    logger.warning("Retry de formatação JSON: falhou")
+    return None
