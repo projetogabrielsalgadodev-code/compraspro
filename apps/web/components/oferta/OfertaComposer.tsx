@@ -371,7 +371,7 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
             </div>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
+          <div className={fonteDados === "arquivo" ? "grid gap-4 xl:grid-cols-[1.45fr_1fr]" : "grid gap-4 grid-cols-1"}>
             <div className="space-y-4">
               <div>
                 <div className="mb-2">
@@ -401,21 +401,19 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
                 />
               </div>
             </div>
-            <BancoDadosUpload
-              arquivo={arquivoBanco}
-              onArquivoChange={setArquivoBanco}
-              bancoPersistido={bancoPersistido}
-              onRemoverBancoPersistido={() => {
-                sessionStorage.removeItem("banco_cliente_importado");
-                setBancoPersistido(false);
-              }}
-              titulo={fonteDados === "arquivo" ? "Arquivo de dados (obrigatório)" : "Banco do cliente"}
-              descricao={
-                fonteDados === "arquivo"
-                  ? "Importe o arquivo CSV ou XLSX com o histórico de preços que será usado como base de comparação pela IA."
-                  : "Importe CSV, XLSX, XLS, XML, TXT, ZIP e outras exportacoes comuns para enriquecer a analise."
-              }
-            />
+            {fonteDados === "arquivo" && (
+              <BancoDadosUpload
+                arquivo={arquivoBanco}
+                onArquivoChange={setArquivoBanco}
+                bancoPersistido={bancoPersistido}
+                onRemoverBancoPersistido={() => {
+                  sessionStorage.removeItem("banco_cliente_importado");
+                  setBancoPersistido(false);
+                }}
+                titulo="Arquivo de Entradas (Obrigatório)"
+                descricao="Importe sua planilha de Entradas (CSV ou XLSX) contendo histórico do recebimento e preços pagos. A IA usará esses dados como referência para a comparação."
+              />
+            )}
           </div>
 
           <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
