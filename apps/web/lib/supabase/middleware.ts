@@ -2,10 +2,12 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 // Rotas /auth que devem permanecer acessíveis mesmo com sessão ativa
-// (ex: usuário convidado precisa criar senha antes de usar o sistema)
+// (ex: usuário convidado precisa criar senha, ou token verification)
 const AUTH_ROUTES_ALLOW_AUTHENTICATED = [
   "/auth/criar-senha",
   "/auth/atualizar-senha",
+  "/auth/confirm",
+  "/auth/callback",
 ]
 
 export async function updateSession(request: NextRequest) {
