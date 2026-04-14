@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Building2, ChevronLeft, ClipboardList, Cog, Home, Package, ShieldCheck, Users, X } from "lucide-react";
+import { BarChart3, ChevronLeft, ClipboardList, Cog, Home, Package, ShieldCheck, X } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
@@ -12,11 +12,6 @@ const items = [
   { href: "/produtos", label: "Produtos", icon: Package },
   { href: "/nova-analise", label: "Nova análise", icon: ClipboardList },
   { href: "/configuracoes", label: "Configurações", icon: Cog }
-];
-
-const adminItems = [
-  { href: "/admin/empresas", label: "Empresas", icon: Building2 },
-  { href: "/admin/usuarios", label: "Usuários", icon: Users },
 ];
 
 interface SidebarProps {
@@ -29,6 +24,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, mobileOpen, onToggleCollapse, onCloseMobile, isAdmin = false }: SidebarProps) {
   const pathname = usePathname();
+  const isOnAdminPages = pathname?.startsWith("/admin");
 
   const renderNavItem = (item: typeof items[0]) => {
     const Icon = item.icon;
@@ -38,7 +34,6 @@ export function Sidebar({ collapsed, mobileOpen, onToggleCollapse, onCloseMobile
         key={item.href}
         href={item.href}
         onClick={onCloseMobile}
-        /* C-21: aria-current="page" para acessibilidade de leitores de tela */
         aria-current={ativo ? "page" : undefined}
         className={cn(
           "flex items-center gap-3 rounded-2xl px-4 py-3.5 text-base font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria focus-visible:ring-offset-2 focus-visible:ring-offset-fundo lg:text-sm",
@@ -89,22 +84,30 @@ export function Sidebar({ collapsed, mobileOpen, onToggleCollapse, onCloseMobile
         <nav className="space-y-2 flex-1 overflow-y-auto">
           {items.map(renderNavItem)}
 
-          {/* Seção Admin — visível somente para admins */}
+          {/* Botão Painel Admin — visível somente para quem é admin */}
           {isAdmin && (
             <>
-              <div className={cn("ds-shell-line relative mt-6 mb-4 pt-4", collapsed && "mt-4 mb-2 pt-2")}>
-                {!collapsed ? (
-                  <div className="flex items-center gap-2 px-1">
-                    <ShieldCheck className="h-3.5 w-3.5 text-primariaapp" />
-                    <span className="ds-eyebrow">Administração</span>
-                  </div>
-                ) : (
-                  <div className="flex justify-center">
-                    <ShieldCheck className="h-4 w-4 text-primariaapp" />
-                  </div>
+              <div className={cn("ds-shell-line relative mt-6 mb-3 pt-4", collapsed && "mt-4 mb-2 pt-2")} />
+              <Link
+                href="/admin/empresas"
+                onClick={onCloseMobile}
+                className={cn(
+                  "group flex items-center gap-3 rounded-2xl px-4 py-3.5 text-base font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria focus-visible:ring-offset-2 focus-visible:ring-offset-fundo lg:text-sm",
+                  isOnAdminPages
+                    ? "bg-[linear-gradient(135deg,rgb(var(--accent-primary) / 0.20),rgb(var(--accent-secondary) / 0.10))] text-primariaapp ring-1 ring-[rgb(var(--accent-primary) / 0.18)] shadow-[0_4px_16px_rgba(36,76,255,0.12)]"
+                    : "text-texto/88 hover:bg-[linear-gradient(135deg,rgb(var(--accent-primary) / 0.12),rgb(var(--accent-secondary) / 0.06))] hover:text-primariaapp"
                 )}
-              </div>
-              {adminItems.map(renderNavItem)}
+              >
+                <span className={cn(
+                  "ds-icon-chip h-11 w-11 shrink-0",
+                  isOnAdminPages
+                    ? "bg-[linear-gradient(135deg,rgb(var(--accent-primary) / 0.30),rgb(var(--accent-secondary) / 0.16))] text-primariaapp"
+                    : "bg-[linear-gradient(135deg,rgb(var(--accent-primary) / 0.14),rgb(var(--accent-secondary) / 0.08))] text-primariaapp"
+                )}>
+                  <ShieldCheck className="h-5 w-5 lg:h-4 lg:w-4" />
+                </span>
+                {!collapsed ? "Painel Admin" : null}
+              </Link>
             </>
           )}
         </nav>

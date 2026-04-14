@@ -54,20 +54,19 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // ─── Proteção de rotas /admin → exige papel 'admin' ──────────────────────
+  // ─── Proteção de rotas /admin → exige isadmin = true ──────────────────────
   const isAdminRoute = pathname.startsWith("/admin")
 
   if (user && isAdminRoute) {
     const { data: perfil } = await supabase
       .from("perfis")
-      .select("papel")
+      .select("isadmin")
       .eq("id", user.id)
       .single()
 
-    if (!perfil || perfil.papel !== "admin") {
+    if (!perfil || !perfil.isadmin) {
       const url = request.nextUrl.clone()
-      url.pathname = "/auth/login"
-      url.searchParams.set("error", "Sem permissão de administrador.")
+      url.pathname = "/home"
       return NextResponse.redirect(url)
     }
   }

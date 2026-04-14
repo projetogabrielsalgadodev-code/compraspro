@@ -16,14 +16,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/auth/login");
   }
 
-  // Buscar o papel do usuário para mostrar links de admin na sidebar
+  // Buscar isadmin do perfil para mostrar link de admin na sidebar
   const { data: perfil } = await supabase
     .from("perfis")
-    .select("papel")
+    .select("isadmin")
     .eq("id", user.id)
     .single();
 
-  const isAdmin = perfil?.papel === "admin";
+  const isAdmin = perfil?.isadmin === true;
 
   return <DashboardShell isAdmin={isAdmin}>{children}</DashboardShell>;
 }
