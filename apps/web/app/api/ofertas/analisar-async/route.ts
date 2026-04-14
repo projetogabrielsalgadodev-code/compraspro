@@ -60,7 +60,9 @@ export async function POST(request: Request) {
     const data = await response.json();
     return NextResponse.json(data, { status: 200 });
   } catch (err) {
-    console.error("[analisar-async] Erro:", err);
-    return NextResponse.json({ error: "Erro interno ao conectar com o backend." }, { status: 500 });
+    const errMessage = err instanceof Error ? err.message : String(err);
+    console.error("[analisar-async] Erro:", errMessage);
+    console.error("[analisar-async] FASTAPI_URL:", FASTAPI_URL);
+    return NextResponse.json({ error: "Erro interno ao conectar com o backend.", detail: errMessage }, { status: 500 });
   }
 }

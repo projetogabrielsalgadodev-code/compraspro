@@ -213,7 +213,8 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        throw new Error((body as { error?: string })?.error ?? "Não foi possível iniciar a análise.");
+        const detail = (body as any)?.detail ? ` (${(body as any).detail})` : '';
+        throw new Error(((body as { error?: string })?.error ?? "Não foi possível iniciar a análise.") + detail);
       }
 
       // Sucesso — limpar formulário e mostrar modal
