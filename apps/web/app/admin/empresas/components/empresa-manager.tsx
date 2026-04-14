@@ -251,7 +251,7 @@ export function EmpresaManager({ initialData }: { initialData: Empresa[] }) {
 
       {/* Modal de criação/edição */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[520px] ds-panel border-app-strong">
+        <DialogContent className="sm:max-w-[520px] border-app-strong bg-[rgb(var(--bg-card))]">
           <form onSubmit={handleSave}>
             <DialogHeader>
               <DialogTitle className="text-texto">

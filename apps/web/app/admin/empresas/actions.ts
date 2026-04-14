@@ -4,8 +4,8 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
-const getSupabase = () => {
-  const cookieStore = cookies()
+const getSupabase = async () => {
+  const cookieStore = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -18,8 +18,37 @@ const getSupabase = () => {
   )
 }
 
+/**
+ * SEGURANÇA: Verifica se o usuário autenticado é admin.
+ * Deve ser chamado em TODAS as server actions de escrita no admin.
+ */
+async function requireAdmin(): Promise<{ userId: string } | { error: string }> {
+  const supabase = await getSupabase()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Não autenticado.' }
+  }
+
+  const { data: perfil } = await supabase
+    .from('perfis')
+    .select('isadmin, papel')
+    .eq('id', user.id)
+    .single()
+
+  if (!perfil?.isadmin && perfil?.papel !== 'admin') {
+    return { error: 'Acesso negado. Apenas administradores podem executar esta ação.' }
+  }
+
+  return { userId: user.id }
+}
+
 export async function getEmpresas() {
-  const supabase = getSupabase()
+  // Leitura: requireAdmin para listar empresas no painel admin
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return []
+
+  const supabase = await getSupabase()
   const { data, error } = await supabase
     .from('empresas')
     .select('*')
@@ -45,6 +74,10 @@ export async function getEmpresas() {
 }
 
 export async function upsertEmpresa(formData: FormData) {
+  // SEGURANÇA: Verificar admin antes de criar/editar empresa
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return { error: adminCheck.error }
+
   const id = formData.get('id') as string
   const nome = formData.get('nome') as string
   const cnpj = formData.get('cnpj') as string
@@ -58,7 +91,7 @@ export async function upsertEmpresa(formData: FormData) {
     return { error: 'Nome e CNPJ são obrigatórios.' }
   }
 
-  const supabase = getSupabase()
+  const supabase = await getSupabase()
 
   const payload: any = { nome, cnpj, razao_social, telefone, email, endereco, ativo }
   if (id) {
@@ -76,7 +109,11 @@ export async function upsertEmpresa(formData: FormData) {
 }
 
 export async function deleteEmpresa(id: string) {
-  const supabase = getSupabase()
+  // SEGURANÇA: Verificar admin
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return { error: adminCheck.error }
+
+  const supabase = await getSupabase()
   const { error } = await supabase.from('empresas').delete().eq('id', id)
 
   if (error) {
@@ -88,7 +125,11 @@ export async function deleteEmpresa(id: string) {
 }
 
 export async function toggleEmpresaAtivo(id: string, ativo: boolean) {
-  const supabase = getSupabase()
+  // SEGURANÇA: Verificar admin
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return { error: adminCheck.error }
+
+  const supabase = await getSupabase()
   const { error } = await supabase
     .from('empresas')
     .update({ ativo })

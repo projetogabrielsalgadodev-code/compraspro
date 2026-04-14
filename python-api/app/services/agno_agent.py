@@ -21,7 +21,7 @@ from typing import Any
 from agno.agent import Agent
 from agno.models.anthropic import Claude
 
-from app.db.supabase_client import get_settings
+from app.db.supabase_client import get_settings, get_supabase_client
 from app.models.schemas import AnaliseOfertaAgnoOutput
 from app.services.agno_tools import AGNO_TOOLS
 
@@ -302,8 +302,31 @@ def _to_int(v: Any) -> int:
 
 # ─── Criação do agente ────────────────────────────────────────────────────────
 
+def _buscar_parametros_agente() -> dict | None:
+    """Busca parâmetros do agente na tabela parametros_agente do Supabase.
+    
+    Retorna dict com modelo, temperatura, max_tokens, prompt_sistema.
+    Retorna None se não encontrar ou se Supabase não estiver disponível.
+    """
+    try:
+        client = get_supabase_client()
+        if client is None:
+            return None
+        result = client.table("parametros_agente").select("*").limit(1).execute()
+        if result.data and len(result.data) > 0:
+            logger.info("Parâmetros do agente carregados do banco de dados")
+            return result.data[0]
+    except Exception as e:
+        logger.warning(f"Falha ao buscar parametros_agente: {e}")
+    return None
+
+
 def criar_agente_analise(empresa_id: str, model_id: str | None = None) -> Agent:
     """Cria e retorna uma instância do agente de análise de ofertas.
+
+    Carrega parâmetros (prompt de sistema, max_tokens) da tabela
+    `parametros_agente` do Supabase. Se não encontrar, usa os valores
+    hardcoded como fallback.
 
     NOTA: NÃO usamos response_model pois o Agno/Claude frequentemente retorna
     texto narrativo + JSON em bloco markdown, causando falha no parser automático.
@@ -312,14 +335,26 @@ def criar_agente_analise(empresa_id: str, model_id: str | None = None) -> Agent:
     settings = get_settings()
     modelo = model_id or settings.anthropic_model or "claude-sonnet-4-5-20250929"
 
+    # Buscar parâmetros do banco de dados
+    params_db = _buscar_parametros_agente()
+    
+    if params_db:
+        instructions = params_db.get("prompt_sistema") or SYSTEM_INSTRUCTIONS
+        max_tokens_val = params_db.get("max_tokens") or 16384
+        logger.info(f"Usando prompt do banco ({len(instructions)} chars), max_tokens={max_tokens_val}")
+    else:
+        instructions = SYSTEM_INSTRUCTIONS
+        max_tokens_val = 16384
+        logger.info("Usando SYSTEM_INSTRUCTIONS hardcoded (banco indisponível)")
+
     agent = Agent(
         model=Claude(
             id=modelo,
             api_key=settings.anthropic_api_key,
-            max_tokens=16384,  # Evita truncamento de JSONs grandes
+            max_tokens=max_tokens_val,
         ),
         tools=AGNO_TOOLS,
-        instructions=SYSTEM_INSTRUCTIONS,
+        instructions=instructions,
         # SEM response_model — o Claude retorna texto+JSON que o Agno não consegue
         # parsear automaticamente. Fazemos o parsing manualmente abaixo.
         session_state={"empresa_id": empresa_id},
@@ -435,7 +470,11 @@ Após analisar TODOS os itens, retorne APENAS o bloco JSON com o resultado compl
 
     # ─── Extrair resultado estruturado ───────────────────────────────────────
     content = response.content
-    logger.debug(f"response.content type={type(content).__name__}, preview={str(content)[:200]}")
+    logger.warning(f"[DEBUG-PARSE] response.content type={type(content).__name__}, length={len(str(content))}, preview={str(content)[:500]}")
+    if hasattr(response, "messages") and response.messages:
+        for idx, msg in enumerate(response.messages):
+            mc = getattr(msg, "content", None)
+            logger.warning(f"[DEBUG-PARSE] message[{idx}] role={getattr(msg, 'role', '?')}, content type={type(mc).__name__}, preview={str(mc)[:300]}")
 
     # Caso 1: Já é o tipo correto (improvável sem response_model, mas cobre bases)
     if isinstance(content, AnaliseOfertaAgnoOutput):

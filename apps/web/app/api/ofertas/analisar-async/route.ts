@@ -12,6 +12,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Usuário não autenticado." }, { status: 401 });
     }
 
+    // Obter access_token para repassar ao FastAPI (que agora exige JWT)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return NextResponse.json({ error: "Sessão expirada. Faça login novamente." }, { status: 401 });
+    }
+
     const { data: perfil } = await supabase
       .from("perfis")
       .select("empresa_id")
@@ -31,10 +37,13 @@ export async function POST(request: Request) {
     payload.empresa_id = perfil.empresa_id;
     payload.usuario_id = user.id;
 
-    // Sem timeout — o backend retorna IMEDIATAMENTE com analise_id
+    // SEGURANÇA: Forward do Bearer token para o FastAPI (obrigatório após hardening)
     const response = await fetch(`${FASTAPI_URL}/api/ofertas/analisar-async`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify(payload),
       cache: "no-store",
     });

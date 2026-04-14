@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, ChevronLeft, ClipboardList, Cog, Home, Package, ShieldCheck, X } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -111,22 +110,6 @@ export function Sidebar({ collapsed, mobileOpen, onToggleCollapse, onCloseMobile
             </>
           )}
         </nav>
-        <div className={cn("ds-subpanel mt-auto rounded-[24px] px-4 py-4", mobileOpen && "bg-[linear-gradient(180deg,rgb(var(--bg-card) / 0.98),rgb(var(--bg-input) / 0.95))]", collapsed && "lg:px-3") }>
-          {!collapsed ? (
-            <>
-              <p className="ds-eyebrow">Ambiente</p>
-              <p className="mt-2 text-sm font-semibold text-texto">Visualização</p>
-              <p className="mt-1 text-xs text-secondary">Use o alternador abaixo para trocar entre tema claro e escuro.</p>
-              <div className="mt-4">
-                <ThemeToggle className="w-full justify-center" />
-              </div>
-            </>
-          ) : (
-            <div className="flex justify-center text-secondary">
-              <ThemeToggle compact />
-            </div>
-          )}
-        </div>
       </div>
     </aside>
     </>

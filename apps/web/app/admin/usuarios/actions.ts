@@ -6,8 +6,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 // Função utilitária básica para obter o supabase_client da requisição
-const getSupabase = () => {
-  const cookieStore = cookies()
+const getSupabase = async () => {
+  const cookieStore = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -20,8 +20,37 @@ const getSupabase = () => {
   )
 }
 
+/**
+ * SEGURANÇA: Verifica se o usuário autenticado é admin.
+ * Deve ser chamado em TODAS as server actions que usam supabaseAdmin.
+ */
+async function requireAdmin(): Promise<{ userId: string } | { error: string }> {
+  const supabase = await getSupabase()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Não autenticado.' }
+  }
+
+  const { data: perfil } = await supabase
+    .from('perfis')
+    .select('isadmin, papel')
+    .eq('id', user.id)
+    .single()
+
+  // Verificar isadmin ou papel = 'admin'
+  if (!perfil?.isadmin && perfil?.papel !== 'admin') {
+    return { error: 'Acesso negado. Apenas administradores podem executar esta ação.' }
+  }
+
+  return { userId: user.id }
+}
+
 export async function getUsers(empresaId?: string) {
-  const supabase = getSupabase()
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return []
+
+  const supabase = await getSupabase()
 
   let query = supabase
     .from('perfis')
@@ -62,7 +91,7 @@ export async function getUsers(empresaId?: string) {
 }
 
 export async function getEmpresasList() {
-  const supabase = getSupabase()
+  const supabase = await getSupabase()
   const { data, error } = await supabase
     .from('empresas')
     .select('id, nome')
@@ -77,7 +106,7 @@ export async function getEmpresasList() {
 }
 
 export async function getEmpresaById(id: string) {
-  const supabase = getSupabase()
+  const supabase = await getSupabase()
   const { data, error } = await supabase
     .from('empresas')
     .select('id, nome')
@@ -89,6 +118,10 @@ export async function getEmpresaById(id: string) {
 }
 
 export async function inviteUser(formData: FormData) {
+  // SEGURANÇA: Verificar admin antes de usar supabaseAdmin
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return { error: adminCheck.error }
+
   const email = formData.get('email') as string
   const nome = formData.get('nome') as string
   const papel = formData.get('papel') as string
@@ -103,10 +136,12 @@ export async function inviteUser(formData: FormData) {
   }
 
   // 1. Invitar o usuário via Supabase Auth Admin
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
      data: {
         nome: nome,
-     }
+     },
+     redirectTo: `${appUrl}/auth/callback?next=/home`,
   })
 
   if (inviteError) {
@@ -135,7 +170,55 @@ export async function inviteUser(formData: FormData) {
   return { success: `Convite enviado com sucesso para ${email}` }
 }
 
+export async function updateUser(formData: FormData) {
+  // SEGURANÇA: Verificar admin antes de usar supabaseAdmin
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return { error: adminCheck.error }
+
+  const id = formData.get('id') as string // User ID
+  const nome = formData.get('nome') as string
+  const papel = formData.get('papel') as string
+  const empresaId = formData.get('empresa_id') as string
+
+  if (!id || !nome || !empresaId) {
+    return { error: 'Campos obrigatórios faltando' }
+  }
+
+  // 1. Atualizar metadata no auth
+  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+     user_metadata: { nome }
+  })
+
+  // Permissão falha não interrompe porque o principal é a tabela perfil
+  if (authError) {
+     console.error("Erro ao atualizar auth user:", authError)
+  }
+
+  // 2. Atualizar no public.perfis
+  const updateData = {
+     nome: nome,
+     papel: papel || 'funcionario',
+     empresa_id: empresaId,
+  }
+
+  const { error: profileError } = await supabaseAdmin
+    .from('perfis')
+    .update(updateData)
+    .eq('id', id)
+
+  if (profileError) {
+     return { error: 'Erro ao atualizar o perfil: ' + profileError.message }
+  }
+
+  revalidatePath('/admin/usuarios')
+  return { success: 'Usuário atualizado com sucesso!' }
+}
+
 export async function updateRole(userId: string, newRole: string) {
+   // SEGURANÇA: Verificar admin
+   const adminCheck = await requireAdmin()
+   if ('error' in adminCheck) return { error: adminCheck.error }
+
    const { error } = await supabaseAdmin
      .from('perfis')
      .update({ papel: newRole })
@@ -150,6 +233,10 @@ export async function updateRole(userId: string, newRole: string) {
 }
 
 export async function updateUserEmpresa(userId: string, empresaId: string) {
+   // SEGURANÇA: Verificar admin
+   const adminCheck = await requireAdmin()
+   if ('error' in adminCheck) return { error: adminCheck.error }
+
    const { error } = await supabaseAdmin
      .from('perfis')
      .update({ empresa_id: empresaId || null })
@@ -164,6 +251,10 @@ export async function updateUserEmpresa(userId: string, empresaId: string) {
 }
 
 export async function deleteUser(userId: string) {
+   // SEGURANÇA: Verificar admin antes de deletar
+   const adminCheck = await requireAdmin()
+   if ('error' in adminCheck) return { error: adminCheck.error }
+
    // Remove o auth
    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId)
    if (authError) return { error: authError.message }

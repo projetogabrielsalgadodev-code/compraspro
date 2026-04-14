@@ -77,8 +77,9 @@ export async function analisarOferta(payload: { texto_bruto: string; empresa_id?
   return respostaAnaliseSchema.parse(data);
 }
 
-export async function buscarConfiguracaoEmpresa(empresaId: string) {
-  const response = await fetch(`/api/configuracoes/empresa?empresa_id=${encodeURIComponent(empresaId)}`, {
+export async function buscarConfiguracaoEmpresa(empresaId?: string) {
+  // SEGURANÇA: empresa_id agora é extraído da sessão autenticada no backend
+  const response = await fetch(`/api/configuracoes/empresa`, {
     cache: "no-store"
   });
 

@@ -29,6 +29,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Obter access_token para repassar ao FastAPI (que agora exige JWT)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return NextResponse.json(
+        { error: "Sessão expirada. Faça login novamente." },
+        { status: 401 }
+      );
+    }
+
     const payload = await request.json();
 
     if (!payload.texto_bruto?.trim()) {
@@ -50,6 +59,7 @@ export async function POST(request: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${session.access_token}`,
       },
       body: JSON.stringify(payload),
       cache: "no-store",

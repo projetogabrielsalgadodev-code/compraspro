@@ -7,6 +7,9 @@ Fluxo assíncrono (recomendado para análises longas):
 
 Fluxo síncrono legado:
   POST /analisar → aguarda resultado (pode dar timeout para ofertas grandes)
+
+SEGURANÇA: empresa_id é extraído EXCLUSIVAMENTE do JWT via Depends(get_current_empresa_id).
+Nunca aceita empresa_id do body/payload da requisição.
 """
 from __future__ import annotations
 
@@ -15,9 +18,10 @@ import logging
 from collections import Counter
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from app.db.supabase_client import get_settings, get_supabase_client
+from app.middleware import get_current_empresa_id, get_current_user_id
 from app.models.schemas import (
     AnaliseCreate,
     AnaliseItemCreate,
@@ -202,10 +206,13 @@ async def _background_analise(
 async def analisar_oferta_async(
     payload: OfertaAnalyzeRequest,
     background_tasks: BackgroundTasks,
+    empresa_id: str = Depends(get_current_empresa_id),
 ):
     """
     Inicia a análise em background e retorna analise_id imediatamente.
     O frontend deve fazer polling em GET /status/{analise_id}.
+
+    SEGURANÇA: empresa_id extraído do JWT via dependency injection.
     """
     settings = get_settings()
 
@@ -213,13 +220,6 @@ async def analisar_oferta_async(
         raise HTTPException(
             status_code=500,
             detail="ANTHROPIC_API_KEY não configurada.",
-        )
-
-    empresa_id = payload.empresa_id
-    if not empresa_id:
-        raise HTTPException(
-            status_code=400,
-            detail="empresa_id é obrigatório.",
         )
 
     if not payload.texto_bruto or not payload.texto_bruto.strip():
@@ -236,7 +236,7 @@ async def analisar_oferta_async(
         try:
             client.table("analises_oferta").insert({
                 "id": analise_id,
-                "empresa_id": empresa_id,
+                "empresa_id": empresa_id,  # do JWT, não do payload
                 "usuario_id": payload.usuario_id,
                 "fornecedor": payload.fornecedor_informado,
                 "origem": "texto",
@@ -250,7 +250,7 @@ async def analisar_oferta_async(
     background_tasks.add_task(
         _background_analise,
         analise_id=analise_id,
-        empresa_id=empresa_id,
+        empresa_id=empresa_id,  # do JWT, não do payload
         usuario_id=payload.usuario_id,
         texto_bruto=payload.texto_bruto,
         fornecedor_informado=payload.fornecedor_informado,
@@ -263,15 +263,20 @@ async def analisar_oferta_async(
     }
 
 
-# ─── Endpoint 2: Polling de status ───────────────────────────────────────────
+# ─── Endpoint 2: Polling de status (autenticado) ─────────────────────────────
 
 @router.get("/status/{analise_id}")
-async def status_analise(analise_id: str):
+async def status_analise(
+    analise_id: str,
+    empresa_id: str = Depends(get_current_empresa_id),
+):
     """
     Retorna o status atual de uma análise.
     - status=processando → análise ainda em andamento
     - status=concluida   → resultado disponível em resultado_json
     - status=erro        → falha, mensagem em resultado_json.erro
+
+    SEGURANÇA: verifica que a análise pertence à empresa do usuário autenticado.
     """
     client = get_supabase_client()
     if not client:
@@ -280,7 +285,7 @@ async def status_analise(analise_id: str):
     try:
         response = (
             client.table("analises_oferta")
-            .select("id, status, resultado_json, created_at")
+            .select("id, status, resultado_json, created_at, empresa_id")
             .eq("id", analise_id)
             .limit(1)
             .execute()
@@ -290,6 +295,11 @@ async def status_analise(analise_id: str):
             raise HTTPException(status_code=404, detail="Análise não encontrada.")
 
         row = data[0]
+
+        # Verificar que a análise pertence à empresa do usuário
+        if row.get("empresa_id") != empresa_id:
+            raise HTTPException(status_code=403, detail="Acesso negado a esta análise.")
+
         return {
             "analise_id": analise_id,
             "status": row.get("status"),
@@ -306,10 +316,15 @@ async def status_analise(analise_id: str):
 # ─── Endpoint legado síncrono (mantido para compatibilidade / test_api.py) ───
 
 @router.post("/analisar", response_model=OfertaAnalyzeResponse)
-async def analisar_oferta(payload: OfertaAnalyzeRequest) -> OfertaAnalyzeResponse:
+async def analisar_oferta(
+    payload: OfertaAnalyzeRequest,
+    empresa_id: str = Depends(get_current_empresa_id),
+) -> OfertaAnalyzeResponse:
     """
     Analisa uma oferta de forma síncrona. Pode dar timeout para ofertas longas.
     Prefira /analisar-async + polling para uso em produção.
+
+    SEGURANÇA: empresa_id extraído do JWT via dependency injection.
     """
     settings = get_settings()
 
@@ -319,18 +334,11 @@ async def analisar_oferta(payload: OfertaAnalyzeRequest) -> OfertaAnalyzeRespons
             detail="ANTHROPIC_API_KEY não configurada. Configure a variável de ambiente.",
         )
 
-    empresa_id = payload.empresa_id
-    if not empresa_id:
-        raise HTTPException(
-            status_code=400,
-            detail="empresa_id é obrigatório. Informe no payload ou autentique-se via JWT.",
-        )
-
     try:
         analise_id = str(uuid4())
         return await _executar_e_persistir(
             analise_id=analise_id,
-            empresa_id=empresa_id,
+            empresa_id=empresa_id,  # do JWT, não do payload
             usuario_id=payload.usuario_id,
             texto_bruto=payload.texto_bruto,
             fornecedor_informado=payload.fornecedor_informado,
@@ -342,5 +350,3 @@ async def analisar_oferta(payload: OfertaAnalyzeRequest) -> OfertaAnalyzeRespons
             status_code=500,
             detail=f"Erro ao processar análise: {str(e)}",
         )
-
-

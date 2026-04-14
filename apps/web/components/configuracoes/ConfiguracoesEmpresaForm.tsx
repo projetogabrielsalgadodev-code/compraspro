@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { ChevronDown, Loader2, Save, Settings2 } from "lucide-react";
+import { createBrowserClient } from "@supabase/ssr";
 import { buscarConfiguracaoEmpresa, salvarConfiguracaoEmpresa, type ConfiguracaoEmpresa } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,12 +28,27 @@ export function ConfiguracoesEmpresaForm() {
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [empresaNome, setEmpresaNome] = useState<string | null>(null);
 
   useEffect(() => {
     if (!EMPRESA_ID_PADRAO) {
       setMensagem("Defina `NEXT_PUBLIC_EMPRESA_ID_PADRAO` para carregar e salvar as configurações reais da empresa.");
       return;
     }
+
+    // Buscar nome da empresa
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    supabase
+      .from("empresas")
+      .select("nome")
+      .eq("id", EMPRESA_ID_PADRAO)
+      .single()
+      .then(({ data }) => {
+        if (data?.nome) setEmpresaNome(data.nome);
+      });
 
     startTransition(async () => {
       try {
@@ -90,7 +106,7 @@ export function ConfiguracoesEmpresaForm() {
             {modoLeitura ? (
               <p>Modo local ativo. As alterações ficam apenas na interface até você informar uma empresa padrão.</p>
             ) : (
-              <p>Empresa conectada: <span className="font-semibold text-texto">{EMPRESA_ID_PADRAO}</span></p>
+              <p>Empresa conectada: <span className="font-semibold text-texto">{empresaNome || EMPRESA_ID_PADRAO}</span></p>
             )}
           </div>
 

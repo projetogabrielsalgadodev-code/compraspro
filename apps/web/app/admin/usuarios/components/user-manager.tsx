@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { inviteUser, updateRole, deleteUser } from "../actions"
+import { inviteUser, updateRole, deleteUser, updateUser } from "../actions"
 import { useToast } from "@/hooks/use-toast"
 import {
   Dialog,
@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { 
   Plus, Shield, Loader2, Trash2, UserCog, Search, 
-  Mail, ShieldAlert, Building2, UserPlus 
+  Mail, ShieldAlert, Building2, UserPlus, Edit
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -45,20 +45,35 @@ interface UserManagerProps {
 
 export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserManagerProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [editingData, setEditingData] = useState<UserProfile | null>(null)
   const [isPending, startTransition] = useTransition()
   const [searchTerm, setSearchTerm] = useState("")
   const { toast } = useToast()
 
-  const handleInvite = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleOpenNew = () => {
+    setEditingData(null)
+    setIsOpen(true)
+  }
+
+  const handleOpenEdit = (user: UserProfile, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingData(user)
+    setIsOpen(true)
+  }
+
+  const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
 
     startTransition(async () => {
-      const result = await inviteUser(formData)
+      const result = editingData
+        ? await updateUser(formData)
+        : await inviteUser(formData)
+
       if (result.error) {
         toast({
           variant: "destructive",
-          title: "Erro ao convidar",
+          title: "Erro",
           description: result.error,
         })
       } else {
@@ -123,10 +138,10 @@ export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserMan
           />
         </div>
         <Button
-          onClick={() => setIsOpen(true)}
+          onClick={handleOpenNew}
           className="bg-[linear-gradient(135deg,rgb(var(--accent-primary)),rgb(var(--accent-secondary)))] text-white font-semibold shadow-[0_8px_24px_rgba(36,76,255,0.28)] hover:shadow-[0_12px_32px_rgba(36,76,255,0.36)] transition-all hover:-translate-y-0.5"
         >
-          <UserPlus className="mr-2 h-4 w-4" /> Convidar Usuário
+          <UserPlus className="mr-2 h-4 w-4" /> Cadastrar Usuário
         </Button>
       </div>
 
@@ -199,6 +214,14 @@ export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserMan
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="h-7 w-7 p-0 text-secondary hover:text-texto"
+                  onClick={(e) => handleOpenEdit(user, e)}
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="h-7 px-2 text-xs text-secondary hover:text-primariaapp"
                   onClick={() => handleRoleChange(user.id, user.papel === 'admin' ? 'funcionario' : 'admin')}
                 >
@@ -228,29 +251,51 @@ export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserMan
         )}
       </div>
 
-      {/* Modal de convite */}
+      {/* Modal de convite / edição */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[480px] ds-panel border-app-strong">
-          <form onSubmit={handleInvite}>
+        <DialogContent className="sm:max-w-[480px] border-app-strong bg-[rgb(var(--bg-card))]">
+          <form onSubmit={handleSave}>
             <DialogHeader>
-              <DialogTitle className="text-texto">Convidar para a Plataforma</DialogTitle>
+              <DialogTitle className="text-texto">
+                {editingData ? "Editar Usuário" : "Cadastrar na Plataforma"}
+              </DialogTitle>
               <DialogDescription className="text-secondary">
-                O usuário receberá um link mágico no e-mail para configurar a senha.
+                {editingData 
+                  ? "Atualize os dados e acessos do usuário." 
+                  : "O usuário receberá um link mágico no e-mail para configurar a senha."}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-5">
+              {editingData && <input type="hidden" name="id" value={editingData.id} />}
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome Completo *</Label>
-                <Input id="nome" name="nome" placeholder="Maria Silva" required className="bg-input-app" />
+                <Input 
+                  id="nome" 
+                  name="nome" 
+                  defaultValue={editingData?.nome || ""}
+                  placeholder="Maria Silva" 
+                  required 
+                  className="bg-input-app" 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail *</Label>
-                <Input id="email" name="email" type="email" placeholder="maria@farmacia.com" required className="bg-input-app" />
+                <Input 
+                  id="email" 
+                  name="email" 
+                  type="email" 
+                  defaultValue={editingData?.email || ""}
+                  placeholder="maria@farmacia.com" 
+                  required 
+                  disabled={!!editingData}
+                  className="bg-input-app disabled:opacity-50" 
+                />
+                {editingData && <p className="text-xs text-secondary mt-1">O e-mail não pode ser alterado.</p>}
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="papel">Nível de Acesso</Label>
-                  <Select name="papel" defaultValue="funcionario">
+                  <Select name="papel" defaultValue={editingData?.papel || "funcionario"}>
                     <SelectTrigger className="bg-input-app">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
@@ -262,7 +307,7 @@ export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserMan
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="empresa_id">Empresa *</Label>
-                  <Select name="empresa_id" defaultValue={empresaIdFilter || ""}>
+                  <Select name="empresa_id" defaultValue={editingData?.empresa_id || empresaIdFilter || ""}>
                     <SelectTrigger className="bg-input-app">
                       <SelectValue placeholder="Selecione a empresa" />
                     </SelectTrigger>
@@ -292,7 +337,7 @@ export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserMan
                 className="bg-[linear-gradient(135deg,rgb(var(--accent-primary)),rgb(var(--accent-secondary)))] text-white font-semibold"
               >
                 {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
-                {isPending ? "Enviando..." : "Enviar Convite"}
+                {isPending ? "Salvando..." : (editingData ? "Salvar Alterações" : "Enviar Convite")}
               </Button>
             </DialogFooter>
           </form>
