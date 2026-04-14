@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { updateEmpresa } from "@/app/(dashboard)/configuracoes/actions"
+import { formatCNPJ, formatTelefone } from "@/lib/formatters"
 
 interface EmpresaData {
   id: string
@@ -66,10 +67,10 @@ export function EmpresaForm({ empresa }: { empresa: EmpresaData }) {
             <Input value={form.razao_social || ""} onChange={(e) => update("razao_social", e.target.value)} placeholder="Razão social" />
           </Field>
           <Field label="CNPJ">
-            <Input value={form.cnpj || ""} onChange={(e) => update("cnpj", e.target.value)} placeholder="00.000.000/0001-00" />
+            <Input value={form.cnpj || ""} onChange={(e) => update("cnpj", formatCNPJ(e.target.value))} placeholder="00.000.000/0001-00" />
           </Field>
           <Field label="Telefone">
-            <Input value={form.telefone || ""} onChange={(e) => update("telefone", e.target.value)} placeholder="(00) 00000-0000" />
+            <Input value={form.telefone || ""} onChange={(e) => update("telefone", formatTelefone(e.target.value))} placeholder="(00) 00000-0000" />
           </Field>
           <Field label="E-mail">
             <Input type="email" value={form.email || ""} onChange={(e) => update("email", e.target.value)} placeholder="contato@empresa.com" />

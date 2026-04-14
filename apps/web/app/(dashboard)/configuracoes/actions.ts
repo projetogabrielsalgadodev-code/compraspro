@@ -4,6 +4,7 @@ import { cookies } from "next/headers"
 import { createServerClient } from "@supabase/ssr"
 import { revalidatePath } from "next/cache"
 import { supabaseAdmin } from "@/lib/supabase/admin"
+import { validarCNPJ, validarTelefone } from "@/lib/validators"
 
 const getSupabase = async () => {
   const cookieStore = await cookies()
@@ -45,6 +46,17 @@ export async function updateEmpresa(formData: FormData) {
   const empresaId = formData.get("empresa_id") as string
   if (!empresaId) return { error: "Empresa não identificada." }
 
+  // SEGURANÇA: Verificar que o usuário pertence a esta empresa
+  const { data: perfil } = await supabase
+    .from("perfis")
+    .select("empresa_id")
+    .eq("id", user.id)
+    .single()
+
+  if (!perfil || perfil.empresa_id !== empresaId) {
+    return { error: "Acesso negado. Você não pertence a esta empresa." }
+  }
+
   const payload = {
     nome: formData.get("nome") as string,
     razao_social: formData.get("razao_social") as string || null,
@@ -55,6 +67,8 @@ export async function updateEmpresa(formData: FormData) {
   }
 
   if (!payload.nome) return { error: "Nome da empresa é obrigatório." }
+  if (payload.cnpj && !validarCNPJ(payload.cnpj)) return { error: "CNPJ inválido." }
+  if (payload.telefone && !validarTelefone(payload.telefone)) return { error: "Telefone inválido." }
 
   const { error } = await supabaseAdmin
     .from("empresas")
@@ -85,6 +99,7 @@ export async function updatePerfil(formData: FormData) {
   }
 
   if (!payload.nome) return { error: "Nome é obrigatório." }
+  if (payload.telefone && !validarTelefone(payload.telefone)) return { error: "Telefone inválido." }
 
   const { error } = await supabaseAdmin
     .from("perfis")

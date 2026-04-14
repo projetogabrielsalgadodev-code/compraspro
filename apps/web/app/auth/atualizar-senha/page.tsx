@@ -50,7 +50,7 @@ export default function AtualizarSenhaPage() {
         
         // Redireciona para o admin aps 2 seg
         setTimeout(() => {
-           router.push("/admin/empresas")
+           router.push("/home")
         }, 2000)
       }
     })

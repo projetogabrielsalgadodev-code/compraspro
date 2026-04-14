@@ -2,9 +2,10 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
-const getSupabase = () => {
-  const cookieStore = cookies()
+const getSupabase = async () => {
+  const cookieStore = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -17,9 +18,37 @@ const getSupabase = () => {
   )
 }
 
+/**
+ * SEGURANÇA: Verifica se o usuário autenticado é admin.
+ */
+async function requireAdmin(): Promise<{ userId: string } | { error: string }> {
+  const supabase = await getSupabase()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Não autenticado.' }
+  }
+
+  const { data: perfil } = await supabase
+    .from('perfis')
+    .select('isadmin, papel')
+    .eq('id', user.id)
+    .single()
+
+  if (!perfil?.isadmin && perfil?.papel !== 'admin') {
+    return { error: 'Acesso negado. Apenas administradores.' }
+  }
+
+  return { userId: user.id }
+}
+
 export async function getEmpresasParaConfig() {
-  const supabase = getSupabase()
-  const { data, error } = await supabase
+  // SEGURANÇA: Verificar admin antes de listar empresas
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return []
+
+  // Admin precisa ver todas as empresas → supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('empresas')
     .select('id, nome')
     .order('nome', { ascending: true })
@@ -29,8 +58,11 @@ export async function getEmpresasParaConfig() {
 }
 
 export async function getConfiguracao(empresaId: string) {
-  const supabase = getSupabase()
-  const { data, error } = await supabase
+  // SEGURANÇA: Verificar admin
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return null
+
+  const { data, error } = await supabaseAdmin
     .from('configuracoes_empresa')
     .select('*')
     .eq('empresa_id', empresaId)
@@ -44,6 +76,10 @@ export async function getConfiguracao(empresaId: string) {
 }
 
 export async function saveConfiguracao(formData: FormData) {
+  // SEGURANÇA: Verificar admin antes de salvar
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return { error: adminCheck.error }
+
   const empresa_id = formData.get('empresa_id') as string
   const margem_lucro_padrao = parseFloat(formData.get('margem_lucro_padrao') as string)
   const ignorar_historico_acima_dias = parseInt(formData.get('ignorar_historico_acima_dias') as string, 10)
@@ -60,8 +96,7 @@ export async function saveConfiguracao(formData: FormData) {
     percentual_variacao_alerta: isNaN(percentual_variacao_alerta) ? 15.00 : percentual_variacao_alerta
   }
 
-  const supabase = getSupabase()
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('configuracoes_empresa')
     .upsert(payload, { onConflict: 'empresa_id' })
 

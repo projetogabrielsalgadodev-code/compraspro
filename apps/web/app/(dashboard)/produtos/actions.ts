@@ -14,6 +14,22 @@ export interface ProdutoPayload {
 export async function upsertProduto(payload: ProdutoPayload, id?: string) {
   const supabase = await createClient();
 
+  // SEGURANÇA: Obter o empresa_id do perfil do usuário autenticado
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: "Não autenticado." };
+  }
+
+  const { data: perfil } = await supabase
+    .from("perfis")
+    .select("empresa_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!perfil?.empresa_id) {
+    return { success: false, error: "Usuário sem empresa vinculada." };
+  }
+
   try {
     const dataToSave = {
       ean: payload.ean,
@@ -21,11 +37,11 @@ export async function upsertProduto(payload: ProdutoPayload, id?: string) {
       principio_ativo: payload.principio_ativo,
       fabricante: payload.fabricante,
       estoque: payload.estoque,
-      ...( !id ? { empresa_id: process.env.NEXT_PUBLIC_EMPRESA_ID_PADRAO } : {} )
+      ...( !id ? { empresa_id: perfil.empresa_id } : {} )
     };
 
     if (id) {
-      // Update
+      // Update — RLS garante que só atualiza produtos da própria empresa
       const { error } = await supabase
         .from("produtos")
         .update(dataToSave)

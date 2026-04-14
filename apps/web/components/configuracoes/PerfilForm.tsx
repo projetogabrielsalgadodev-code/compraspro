@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { updatePerfil, uploadAvatar } from "@/app/(dashboard)/configuracoes/actions"
+import { formatTelefone } from "@/lib/formatters"
 
 interface PerfilData {
   id: string
@@ -134,7 +135,7 @@ export function PerfilForm({ perfil }: { perfil: PerfilData }) {
             <p className="text-xs text-secondary mt-1">O e-mail é vinculado à conta e não pode ser alterado aqui.</p>
           </Field>
           <Field label="Telefone">
-            <Input value={form.telefone || ""} onChange={(e) => update("telefone", e.target.value)} placeholder="(00) 00000-0000" />
+            <Input value={form.telefone || ""} onChange={(e) => update("telefone", formatTelefone(e.target.value))} placeholder="(00) 00000-0000" />
           </Field>
           <Field label="Função">
             <Input value={form.papel === "admin" ? "Administrador" : form.papel === "comprador" ? "Comprador" : form.papel} disabled className="opacity-60 cursor-not-allowed" />

@@ -3,6 +3,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { validarCNPJ, validarTelefone } from '@/lib/validators'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const getSupabase = async () => {
   const cookieStore = await cookies()
@@ -48,8 +50,8 @@ export async function getEmpresas() {
   const adminCheck = await requireAdmin()
   if ('error' in adminCheck) return []
 
-  const supabase = await getSupabase()
-  const { data, error } = await supabase
+  // Admin precisa ver TODAS as empresas → usa supabaseAdmin (bypassa RLS)
+  const { data, error } = await supabaseAdmin
     .from('empresas')
     .select('*')
     .order('created_at', { ascending: false })
@@ -59,8 +61,8 @@ export async function getEmpresas() {
     return []
   }
 
-  // Busca a contagem de usuários por empresa pra exibir no card
-  const { data: users } = await supabase.from('perfis').select('empresa_id')
+  // Busca a contagem de usuários por empresa (também via admin p/ ver todos)
+  const { data: users } = await supabaseAdmin.from('perfis').select('empresa_id')
   
   const empresasComConta = data.map(empresa => {
      const qtdeUsuarios = users?.filter(u => u.empresa_id === empresa.id).length || 0;
@@ -91,14 +93,21 @@ export async function upsertEmpresa(formData: FormData) {
     return { error: 'Nome e CNPJ são obrigatórios.' }
   }
 
-  const supabase = await getSupabase()
+  if (!validarCNPJ(cnpj)) {
+    return { error: 'CNPJ inválido.' }
+  }
 
+  if (telefone && !validarTelefone(telefone)) {
+    return { error: 'Telefone inválido.' }
+  }
+
+  // Admin gerencia empresas via supabaseAdmin (RLS agora filtra por empresa)
   const payload: any = { nome, cnpj, razao_social, telefone, email, endereco, ativo }
   if (id) {
     payload.id = id
   }
 
-  const { error } = await supabase.from('empresas').upsert(payload)
+  const { error } = await supabaseAdmin.from('empresas').upsert(payload)
 
   if (error) {
     return { error: error.message }
@@ -113,8 +122,7 @@ export async function deleteEmpresa(id: string) {
   const adminCheck = await requireAdmin()
   if ('error' in adminCheck) return { error: adminCheck.error }
 
-  const supabase = await getSupabase()
-  const { error } = await supabase.from('empresas').delete().eq('id', id)
+  const { error } = await supabaseAdmin.from('empresas').delete().eq('id', id)
 
   if (error) {
     return { error: error.message }
@@ -129,8 +137,7 @@ export async function toggleEmpresaAtivo(id: string, ativo: boolean) {
   const adminCheck = await requireAdmin()
   if ('error' in adminCheck) return { error: adminCheck.error }
 
-  const supabase = await getSupabase()
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from('empresas')
     .update({ ativo })
     .eq('id', id)

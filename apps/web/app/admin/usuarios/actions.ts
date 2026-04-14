@@ -50,9 +50,8 @@ export async function getUsers(empresaId?: string) {
   const adminCheck = await requireAdmin()
   if ('error' in adminCheck) return []
 
-  const supabase = await getSupabase()
-
-  let query = supabase
+  // Admin requires cross-tenant visibility → use supabaseAdmin
+  let query = supabaseAdmin
     .from('perfis')
     .select(`
       id, 
@@ -91,8 +90,8 @@ export async function getUsers(empresaId?: string) {
 }
 
 export async function getEmpresasList() {
-  const supabase = await getSupabase()
-  const { data, error } = await supabase
+  // Admin requires cross-tenant visibility
+  const { data, error } = await supabaseAdmin
     .from('empresas')
     .select('id, nome')
     .eq('ativo', true)
@@ -106,8 +105,7 @@ export async function getEmpresasList() {
 }
 
 export async function getEmpresaById(id: string) {
-  const supabase = await getSupabase()
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('empresas')
     .select('id, nome')
     .eq('id', id)
@@ -141,7 +139,7 @@ export async function inviteUser(formData: FormData) {
      data: {
         nome: nome,
      },
-     redirectTo: `${appUrl}/auth/callback?next=/home`,
+     redirectTo: `${appUrl}/auth/callback?next=/auth/criar-senha`,
   })
 
   if (inviteError) {

@@ -1,6 +1,13 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+// Rotas /auth que devem permanecer acessíveis mesmo com sessão ativa
+// (ex: usuário convidado precisa criar senha antes de usar o sistema)
+const AUTH_ROUTES_ALLOW_AUTHENTICATED = [
+  "/auth/criar-senha",
+  "/auth/atualizar-senha",
+]
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -36,6 +43,11 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")
 
+  // Verifica se é uma rota /auth que permite usuários autenticados
+  const isAuthRouteAllowAuthenticated = AUTH_ROUTES_ALLOW_AUTHENTICATED.some(
+    route => pathname.startsWith(route)
+  )
+
   // ─── Rotas protegidas (tudo que NÃO é /auth, /api ou assets) ─────────────
   const isProtectedRoute = !isAuthRoute && !isApiRoute && !isPublicAsset
 
@@ -47,8 +59,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isAuthRoute) {
-    // Já autenticado → não precisa ver login, vai para home
+  if (user && isAuthRoute && !isAuthRouteAllowAuthenticated) {
+    // Já autenticado em rota /auth que NÃO é exceção → vai para home
+    // (callback, criar-senha e atualizar-senha são permitidos mesmo autenticado)
     const url = request.nextUrl.clone()
     url.pathname = "/home"
     return NextResponse.redirect(url)

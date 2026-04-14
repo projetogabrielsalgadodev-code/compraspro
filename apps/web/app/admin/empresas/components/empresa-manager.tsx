@@ -21,6 +21,7 @@ import {
   MapPin, Search, ToggleLeft, ToggleRight, ChevronRight
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatCNPJ, formatTelefone } from "@/lib/formatters"
 
 type Empresa = {
   id: string
@@ -165,7 +166,7 @@ export function EmpresaManager({ initialData }: { initialData: Empresa[] }) {
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-semibold text-texto truncate">{empresa.nome}</h3>
-                  <p className="text-xs text-secondary font-mono">{empresa.cnpj}</p>
+                  <p className="text-xs text-secondary font-mono">{formatCNPJ(empresa.cnpj)}</p>
                 </div>
               </div>
               <Badge
@@ -195,7 +196,7 @@ export function EmpresaManager({ initialData }: { initialData: Empresa[] }) {
               {empresa.telefone && (
                 <div className="flex items-center gap-2 text-secondary">
                   <Phone className="h-3.5 w-3.5 shrink-0" />
-                  <span>{empresa.telefone}</span>
+                  <span>{formatTelefone(empresa.telefone)}</span>
                 </div>
               )}
             </div>
@@ -277,11 +278,13 @@ export function EmpresaManager({ initialData }: { initialData: Empresa[] }) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cnpj">CNPJ *</Label>
                   <Input
                     id="cnpj"
                     name="cnpj"
                     defaultValue={editingData?.cnpj || ""}
+                    onChange={(e) => {
+                      e.target.value = formatCNPJ(e.target.value);
+                    }}
                     placeholder="00.000.000/0000-00"
                     required
                     className="bg-input-app"
@@ -313,12 +316,14 @@ export function EmpresaManager({ initialData }: { initialData: Empresa[] }) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="telefone">Telefone</Label>
                   <Input
                     id="telefone"
                     name="telefone"
                     defaultValue={editingData?.telefone || ""}
-                    placeholder="(11) 99999-9999"
+                    onChange={(e) => {
+                      e.target.value = formatTelefone(e.target.value);
+                    }}
+                    placeholder="(00) 00000-0000"
                     className="bg-input-app"
                   />
                 </div>
