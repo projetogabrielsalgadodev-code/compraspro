@@ -53,8 +53,13 @@ class ConfiguracaoEmpresaResponse(ConfiguracaoEmpresaBase):
 
 class EquivalenteResumo(BaseModel):
     descricao: str
+    ean: str | None = None
     fabricante: str | None = None
     estoque: int | None = None
+    menor_preco: float | None = None
+    media_preco: float | None = None
+    qtd_entradas: int | None = None
+    demanda_mes: float | None = None
 
 
 class HistoricoPrecoResumo(BaseModel):
@@ -69,7 +74,7 @@ class ItemOfertaResponse(BaseModel):
     ean: str | None = None
     descricao_original: str
     descricao_produto: str | None = None
-    preco_oferta: float
+    preco_oferta: float | None = None
     menor_historico: float | None = None
     origem_menor_historico: str | None = None
     variacao_percentual: float | None = None
@@ -164,10 +169,12 @@ class AnaliseItemCreate(BaseModel):
 
 class ItemAnaliseAgno(BaseModel):
     """Resultado da análise de um item individual pelo agente Agno."""
+    model_config = {"extra": "ignore"}  # Ignore extra fields from engine output
+
     ean: str | None = Field(None, description="EAN do produto identificado")
     descricao_original: str = Field(description="Descrição original do item na oferta")
     descricao_produto: str | None = Field(None, description="Descrição do produto no catálogo")
-    preco_oferta: float = Field(description="Preço ofertado pelo fornecedor")
+    preco_oferta: float | None = Field(None, description="Preço ofertado pelo fornecedor (None para ofertas com desconto %)")
     menor_historico: float | None = Field(None, description="Menor preço histórico pago")
     variacao_percentual: float | None = Field(None, description="Variação % vs menor histórico (positivo = desconto)")
     estoque_item: int = Field(0, description="Estoque atual do produto")
@@ -178,6 +185,9 @@ class ItemAnaliseAgno(BaseModel):
     confianca_match: ConfiancaMatch = Field(description="Confiança do match: alto (EAN), medio (descrição), baixo (aproximado)")
     recomendacao: str = Field(description="Recomendação textual para o comprador (1-2 frases, pt-BR)")
     equivalentes: list[EquivalenteResumo] = Field(default_factory=list, description="Equivalentes farmacêuticos encontrados")
+    origem_menor_historico: str | None = Field(None, description="= (direto) ou != (via equivalente)")
+    tipo_preco: str | None = Field(None, description="absoluto, percentual_desconto, ou sem_preco")
+    desconto_percentual: float | None = Field(None, description="Percentual de desconto quando tipo_preco=percentual_desconto")
 
 
 class AnaliseOfertaAgnoOutput(BaseModel):

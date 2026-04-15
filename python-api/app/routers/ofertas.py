@@ -25,6 +25,7 @@ from app.middleware import get_current_empresa_id, get_current_user_id
 from app.models.schemas import (
     AnaliseCreate,
     AnaliseItemCreate,
+    EquivalenteResumo,
     ItemOfertaResponse,
     OfertaAnalyzeRequest,
     OfertaAnalyzeResponse,
@@ -43,6 +44,17 @@ router = APIRouter()
 def _build_itens_response(resultado_agno) -> list[ItemOfertaResponse]:
     itens_response: list[ItemOfertaResponse] = []
     for item in resultado_agno.itens:
+        # Convert equivalentes — may be EquivalenteResumo objects or raw dicts
+        equiv_list = []
+        if item.equivalentes:
+            for eq in item.equivalentes:
+                if isinstance(eq, EquivalenteResumo):
+                    equiv_list.append(eq)
+                elif isinstance(eq, dict):
+                    equiv_list.append(EquivalenteResumo(**eq))
+                else:
+                    equiv_list.append(eq)
+
         itens_response.append(
             ItemOfertaResponse(
                 ean=item.ean,
@@ -50,7 +62,7 @@ def _build_itens_response(resultado_agno) -> list[ItemOfertaResponse]:
                 descricao_produto=item.descricao_produto,
                 preco_oferta=item.preco_oferta,
                 menor_historico=item.menor_historico,
-                origem_menor_historico=None,
+                origem_menor_historico=getattr(item, "origem_menor_historico", None),
                 variacao_percentual=item.variacao_percentual,
                 estoque_item=item.estoque_item,
                 demanda_mes=item.demanda_mes,
@@ -59,7 +71,7 @@ def _build_itens_response(resultado_agno) -> list[ItemOfertaResponse]:
                 classificacao=item.classificacao,
                 confianca_match=item.confianca_match,
                 recomendacao=item.recomendacao,
-                equivalente_detalhes=[eq for eq in item.equivalentes] if item.equivalentes else [],
+                equivalente_detalhes=equiv_list,
                 historico_menores=[],
                 historico_maiores=[],
             )
