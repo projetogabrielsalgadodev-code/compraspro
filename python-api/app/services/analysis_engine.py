@@ -20,6 +20,19 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Tokens genéricos de forma farmacêutica / embalagem / via de administração
+# Não devem contar como "drug tokens" (peso 5) no matching nem na busca de equivalentes.
+# Apenas o NOME da molécula/princípio ativo deve ter peso alto.
+_GENERIC_FORM_TOKENS = {
+    "xarope", "comprimido", "comprimidos", "comp", "capsula", "capsulas",
+    "dragea", "drageas", "solucao", "solucoes", "suspensao", "nasal",
+    "oral", "gotas", "spray", "creme", "pomada", "locao", "shampoo",
+    "sache", "envelope", "fracao", "frasco", "bisnaga", "geleia",
+    "pastilha", "pastilhas", "infantil", "adulto", "pediatrico",
+    "injetavel", "topico", "generico", "similar", "referencia",
+    "eurofarma", "medley",
+}
+
 
 # ─── Calculos Deterministicos ─────────────────────────────────────────────────
 
@@ -152,13 +165,20 @@ def _match_item_no_arquivo(
 ) -> dict | None:
     """
     Faz matching de um item da oferta com os dados do arquivo.
+    
+    NOTA: used_eans NÃO é usado para excluir candidatos.
+    Múltiplos itens da oferta podem ter match com o mesmo EAN histórico,
+    pois o histórico é referência de preço, não estoque.
     """
     from app.services.file_parser import _extract_tokens
+    from app.services.offer_extractor import _classificar_forma_farmaceutica
+
+    # Categoria do item da oferta — para filtrar candidatos da mesma forma farmacêutica
+    categoria_oferta = _classificar_forma_farmaceutica(descricao)
 
     # Match por EAN exato (se disponivel)
-    if ean_oferta and ean_oferta in ean_stats and ean_oferta not in used_eans:
+    if ean_oferta and ean_oferta in ean_stats:
         stats = ean_stats[ean_oferta]
-        used_eans.add(ean_oferta)
         return {
             "ean": ean_oferta,
             "descricao_arquivo": stats["descricao"],
@@ -179,52 +199,59 @@ def _match_item_no_arquivo(
     if len(item_tokens) < 1:
         return None
 
-    drug_tokens = {t for t in item_tokens if len(t) >= 4 and t.isalpha()}
+    # Separar drug tokens (nomes de moléculas) de tokens genéricos (forma, embalagem)
+    drug_tokens = {t for t in item_tokens if len(t) >= 4 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
     generic_tokens = item_tokens - drug_tokens
 
     candidate_scores: dict[str, float] = {}
     for token in drug_tokens:
         for ean in token_index.get(token, []):
-            if ean not in used_eans:
-                candidate_scores[ean] = candidate_scores.get(ean, 0) + 5.0
+            candidate_scores[ean] = candidate_scores.get(ean, 0) + 5.0
     for token in generic_tokens:
         for ean in token_index.get(token, []):
-            if ean not in used_eans:
-                candidate_scores[ean] = candidate_scores.get(ean, 0) + 1.0
+            candidate_scores[ean] = candidate_scores.get(ean, 0) + 1.0
 
     if not candidate_scores:
         return None
 
     sorted_candidates = sorted(candidate_scores.items(), key=lambda x: x[1], reverse=True)
-    best_ean, best_score = sorted_candidates[0]
 
-    # Validar: exige ao menos 1 drug token em comum ou score >= 10
-    best_desc_tokens = _extract_tokens(ean_stats[best_ean].get("descricao", ""))
-    common_drug_tokens = drug_tokens & best_desc_tokens
+    # Iterar candidatos: encontrar o melhor que passa nos filtros
+    for best_ean, best_score in sorted_candidates:
+        # Validar: exige ao menos 1 drug token em comum ou score >= 10
+        best_desc_tokens = _extract_tokens(ean_stats[best_ean].get("descricao", ""))
+        common_drug_tokens = drug_tokens & best_desc_tokens
 
-    if not common_drug_tokens and best_score < 10:
-        return None
+        if not common_drug_tokens and best_score < 10:
+            continue
 
-    stats = ean_stats[best_ean]
-    n_common = len(common_drug_tokens)
-    confianca = "alto" if n_common >= 2 else "medio" if n_common >= 1 else "baixo"
+        # Filtrar por categoria farmacêutica: não misturar líquido com sólido
+        cat_candidato = _classificar_forma_farmaceutica(ean_stats[best_ean].get("descricao", ""))
+        if categoria_oferta != "unknown" and cat_candidato != "unknown":
+            if categoria_oferta != cat_candidato:
+                continue  # Skip: category mismatch
 
-    used_eans.add(best_ean)
+        stats = ean_stats[best_ean]
+        n_common = len(common_drug_tokens)
+        confianca = "alto" if n_common >= 2 else "medio" if n_common >= 1 else "baixo"
 
-    return {
-        "ean": best_ean,
-        "descricao_arquivo": stats["descricao"],
-        "confianca_match": confianca,
-        "menor_preco": stats["menor_preco"],
-        "media_preco": stats["media_preco"],
-        "maior_preco": stats["maior_preco"],
-        "qtd_entradas": stats["qtd_entradas"],
-        "qtde_total": stats["qtde_total"],
-        "demanda_mes": stats.get("demanda_mes") or _calcular_demanda_mes(stats),
-        "estoque_item": stats.get("estoque_item", 0),
-        "primeira_data": stats["primeira_data"],
-        "ultima_data": stats["ultima_data"],
-    }
+        return {
+            "ean": best_ean,
+            "descricao_arquivo": stats["descricao"],
+            "confianca_match": confianca,
+            "menor_preco": stats["menor_preco"],
+            "media_preco": stats["media_preco"],
+            "maior_preco": stats["maior_preco"],
+            "qtd_entradas": stats["qtd_entradas"],
+            "qtde_total": stats["qtde_total"],
+            "demanda_mes": stats.get("demanda_mes") or _calcular_demanda_mes(stats),
+            "estoque_item": stats.get("estoque_item", 0),
+            "primeira_data": stats["primeira_data"],
+            "ultima_data": stats["ultima_data"],
+        }
+
+    return None
+
 
 
 def _calcular_demanda_mes(stats: dict) -> float:
@@ -254,7 +281,7 @@ def buscar_equivalentes(
     Busca produtos equivalentes no historico baseado em principio ativo (molecula).
 
     Estrategia:
-    1. Extrair tokens farmacologicos da descricao (>= 5 chars, alfa)
+    1. Extrair tokens farmacologicos da descricao (>= 5 chars, alfa, NÃO genéricos)
     2. Buscar no token_index todos os EANs que compartilham esses tokens
     3. Filtrar: remover o EAN do match principal
     4. Filtrar: manter apenas equivalentes da MESMA categoria farmaceutica
@@ -268,8 +295,8 @@ def buscar_equivalentes(
     from app.services.offer_extractor import _classificar_forma_farmaceutica
 
     tokens = _extract_tokens(descricao)
-    # Tokens farmacologicos: >= 5 chars, apenas letras (moleculas, principios ativos)
-    drug_tokens = {t for t in tokens if len(t) >= 5 and t.isalpha()}
+    # Tokens farmacologicos: >= 5 chars, apenas letras, NÃO termos genéricos
+    drug_tokens = {t for t in tokens if len(t) >= 5 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
 
     if not drug_tokens:
         return []
@@ -277,7 +304,7 @@ def buscar_equivalentes(
     # Categoria do produto original — usada para filtrar equivalentes
     categoria_original = _classificar_forma_farmaceutica(descricao)
 
-    # Contar score de cada EAN candidato
+    # Contar score de cada EAN candidato (SOMENTE por drug_tokens, não genéricos)
     candidate_scores: dict[str, float] = {}
     for token in drug_tokens:
         for ean in token_index.get(token, []):
@@ -290,7 +317,7 @@ def buscar_equivalentes(
     # Ranquear por score e filtrar por relevancia
     sorted_candidates = sorted(candidate_scores.items(), key=lambda x: x[1], reverse=True)
 
-    # Exigir pelo menos 1 token farmacologico em comum para ser equivalente
+    # Exigir pelo menos 1 token farmacologico REAL em comum para ser equivalente
     equivalentes = []
     for ean, score in sorted_candidates:
         if len(equivalentes) >= max_equivalentes:
@@ -302,9 +329,9 @@ def buscar_equivalentes(
         if not stats or stats.get("menor_preco") is None:
             continue
 
-        # Verificar que compartilha ao menos 1 drug token
+        # Verificar que compartilha ao menos 1 drug token (NÃO genérico)
         ean_tokens = _extract_tokens(stats.get("descricao", ""))
-        ean_drug_tokens = {t for t in ean_tokens if len(t) >= 5 and t.isalpha()}
+        ean_drug_tokens = {t for t in ean_tokens if len(t) >= 5 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
         common = drug_tokens & ean_drug_tokens
 
         if not common:

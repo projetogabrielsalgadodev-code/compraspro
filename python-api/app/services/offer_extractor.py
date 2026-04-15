@@ -346,8 +346,11 @@ def _classificar_forma_farmaceutica(desc: str) -> str:
         if marker in d:
             return "solido"
     
-    # Pó em frasco (ex: SAL DE FRUTA FR 100G)
-    if re.search(r"\bFR\s+\d+\s*G\b", d):
+    # Pó em frasco/pote (ex: SAL DE FRUTA FR 100G, SAL DE FRUTA 100GRS)
+    if re.search(r"\bFR\s+\d+\s*G(?:RS)?\b", d):
+        return "po"
+    # Peso sem frasco mas sem marcador de sólido/líquido (ex: "100GRS", "100G")
+    if re.search(r"\b\d+\s*G(?:RS)?\b", d) and not re.search(r"(?:CPR|COMP|CAP|DRG|SACHE|ENV|XAROPE|XPE|SOL|GTS|SPRAY|CREME|POM|GEL|SUSP)", d):
         return "po"
     
     # Fallback: se tem "C/" ou "CX" seguido de número, provavelmente é contável
