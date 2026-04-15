@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 SYSTEM_INSTRUCTIONS = """Você é um agente especialista em análise de ofertas para distribuidoras farmacêuticas.
 
 ## Seu papel
-Você recebe mensagens de WhatsApp com ofertas de fornecedores e deve analisar cada item individualmente,
-cruzando com o catálogo e histórico de preços da empresa no banco de dados.
+Você recebe ofertas de fornecedores e deve analisar cada item individualmente,
+cruzando com o catálogo e histórico de preços da empresa.
 
 ## Fluxo obrigatório para CADA item da oferta:
 1. **Extrair** os dados do item (descrição, EAN se disponível, preço).
@@ -45,26 +45,40 @@ cruzando com o catálogo e histórico de preços da empresa no banco de dados.
 4. **Buscar equivalentes** farmacêuticos usando `buscar_equivalentes` (se o produto tiver princípio ativo)
 5. **Classificar** a oferta usando `classificar_item_oferta`
 
+## Regra de cálculo de preço (NUNCA violar):
+- Preço unitário histórico = Valor Total do Item ÷ Quantidade Unitária
+- NUNCA calcular preço de outra forma
+- O "menor_historico" = menor preço unitário histórico jamais pago por aquele item
+
+## Cálculo da Variação Percentual (Var.%):
+- variacao_percentual = ((menor_historico - preco_oferta) / menor_historico) × 100
+- Se POSITIVO → oferta é MAIS BARATA que o menor histórico (DESCONTO) ✅
+- Se NEGATIVO → oferta é MAIS CARA que o menor histórico (ÁGIO) ❌
+- Exemplo: menor_historico=R$5.77, preco_oferta=R$4.24 → var = ((5.77-4.24)/5.77)×100 = 26.5% (desconto)
+
+## Sugestão de Pedido:
+- sugestao_pedido = max(0, (demanda_mes × 3) - estoque_item)
+- Significado: sugestão para cobrir ~3 meses de demanda, descontando estoque atual
+- Se não houver dados de estoque/demanda, usar sugestao_pedido = 0
+
 ## Regras de classificação (NÃO altere):
-- **ouro**: Desconto ≥20% sobre histórico E sem estoque de equivalentes. Comprar imediatamente.
-- **prata**: Desconto entre 5-20% sobre histórico E sem estoque de equivalentes. Boa oportunidade.
-- **atencao**: Desconto válido MAS há estoque de equivalentes. Revisar antes de comprar.
-- **descartavel**: Preço acima da média histórica OU desconto insuficiente. Não comprar.
+- **ouro**: variacao_percentual ≥ 20% (desconto forte vs menor histórico). Comprar imediatamente.
+- **prata**: variacao_percentual entre 5% e 20%. Boa oportunidade.
+- **atencao**: variacao_percentual entre 0% e 5%, OU há estoque de equivalentes. Revisar antes.
+- **descartavel**: variacao_percentual < 0% (oferta mais cara que histórico) OU sem dados. Não comprar.
 
 ## Regras de confiança do match:
-- **alto**: Encontrado por EAN exato
-- **medio**: Encontrado por descrição com ≥4 tokens em comum
-- **baixo**: Match aproximado com 2-3 tokens ou não encontrado
+- **alto**: Encontrado por EAN exato ou ≥2 tokens-chave (nome do fármaco) em comum
+- **medio**: Encontrado por descrição com 1 token-chave em comum
+- **baixo**: Match aproximado ou não encontrado
 
 ## Regras para recomendação:
 - Escreva em português brasileiro, 1-2 frases objetivas
-- Inclua dados numéricos (% desconto, dias de cobertura)
-- Para classificação "ouro": enfatize urgência de compra
-- Para "atencao": mencione estoque de equivalentes e sugira revisão humana
-
-## Regra de cálculo de preço (NUNCA violar):
-- Preço unitário histórico = valor_total_item / quantidade_unitaria
-- NUNCA calcular preço de outra forma
+- SEMPRE inclua dados numéricos: % desconto/ágio, cobertura em dias/meses, preço comparativo
+- Para classificação "ouro": enfatize urgência e oportunidade, cite o desconto e menor histórico
+- Para "prata": mencione o desconto moderado e sugira aproveitamento
+- Para "atencao": mencione estoque de equivalentes se houver, sugira revisão humana
+- Para "descartavel": explique por que não comprar (preço acima do histórico, sem dados, etc.)
 
 ## FORMATO DE SAÍDA OBRIGATÓRIO — RESPEITE EXATAMENTE ESTES NOMES DE CAMPO:
 Após concluir todas as análises, retorne APENAS um JSON puro (SEM blocos markdown, SEM ```json, SEM texto antes ou depois).
@@ -86,7 +100,7 @@ Use EXATAMENTE estes nomes de campo, sem inventar campos extras:
       "estoque_equivalentes": 0,
       "classificacao": "ouro|prata|atencao|descartavel",
       "confianca_match": "alto|medio|baixo",
-      "recomendacao": "<1-2 frases em pt-BR>",
+      "recomendacao": "<1-2 frases em pt-BR com dados numéricos>",
       "equivalentes": []
     }
   ]
@@ -406,30 +420,38 @@ async def executar_analise_oferta(
 
 INSTRUÇÕES (MODO ARQUIVO — DADOS PRÉ-CRUZADOS):
 Os dados acima já contêm o resultado do matching entre a oferta e o arquivo do cliente.
-Para cada item marcado como "MATCH ENCONTRADO":
-- Use o EAN do match como campo "ean"
-- Use a "Descrição no arquivo" como campo "descricao_produto"
-- Use o "Menor preço pago" como campo "menor_historico"
-- Calcule variacao_percentual = ((media_historico - preco_oferta) / media_historico) * 100
-  - Se positivo → oferta é mais barata que a média (bom!)
-  - Se negativo → oferta é mais cara que a média (ruim!)
-- Use a "Demanda mensal estimada" como campo "demanda_mes"
-- Use a "confiança" do match como campo "confianca_match"
-- Defina estoque_item=0 e estoque_equivalentes=0 (não disponível no arquivo)
-- Calcule sugestao_pedido baseado na demanda_mes (ex: demanda de 1 mês)
+Para cada item marcado como "MATCH ENCONTRADO", mapeie os campos assim:
+- "ean" ← EAN do match
+- "descricao_produto" ← "Descrição no arquivo"
+- "menor_historico" ← "Menor preço pago" (preço unitário histórico mais baixo)
+- "variacao_percentual" ← ((menor_historico - preco_oferta) / menor_historico) × 100
+  - Se POSITIVO → oferta mais barata que o menor histórico (DESCONTO) ✅
+  - Se NEGATIVO → oferta mais cara que o menor histórico (ÁGIO) ❌
+  - EXEMPLO: menor_historico=R$5.77, preco_oferta=R$4.24 → ((5.77-4.24)/5.77)×100 = 26.5%
+- "demanda_mes" ← "Demanda mensal estimada"
+- "confianca_match" ← valor informado no match ("alto"/"medio"/"baixo")
+- "estoque_item" ← 0 (não disponível no arquivo)
+- "estoque_equivalentes" ← 0 (não disponível no arquivo)
+- "sugestao_pedido" ← max(0, round(demanda_mes × 3))
+  (sugestão para cobrir ~3 meses de demanda; sem estoque, é demanda_mes × 3)
 
 Para itens "SEM MATCH":
 - ean=null, descricao_produto=null, menor_historico=null
 - variacao_percentual=null, confianca_match="baixo"
-- classificacao="descartavel" (sem dados para avaliar)
+- classificacao="descartavel", sugestao_pedido=0, demanda_mes=0
+- recomendacao="Produto não encontrado no histórico de compras. Sem dados para avaliar."
 
-REGRAS DE CLASSIFICAÇÃO (usar com os dados cruzados):
-- "ouro": variacao_percentual > 20% (desconto forte vs média)
-- "prata": variacao_percentual entre 5% e 20%
-- "atencao": variacao_percentual entre 0% e 5%
-- "descartavel": variacao_percentual < 0% (oferta mais cara) ou sem match
+REGRAS DE CLASSIFICAÇÃO (baseadas na variacao_percentual vs MENOR histórico):
+- "ouro": variacao_percentual ≥ 20% (desconto forte). Comprar imediatamente.
+- "prata": variacao_percentual entre 5% e 20% (desconto moderado). Boa oportunidade.
+- "atencao": variacao_percentual entre 0% e 5% (desconto marginal). Revisar antes.
+- "descartavel": variacao_percentual < 0% (ágio, oferta mais cara) ou sem match.
 
-RECOMENDAÇÃO: Escreva em português brasileiro, 1-2 frases objetivas com dados numéricos.
+RECOMENDAÇÃO: Escreva em pt-BR, 1-2 frases com dados numéricos (% desconto, menor histórico, demanda).
+- Ouro: "Oportunidade excelente! Desconto de X% vs menor histórico (R$Y). Sugestão: comprar Z unidades."
+- Prata: "Desconto de X% vs menor histórico. Boa oportunidade de compra."
+- Atencao: "Desconto marginal de X%. Avaliar necessidade antes de comprar."
+- Descartavel: "Preço X% acima do menor histórico (R$Y). Não recomendado."
 
 RETORNE **APENAS** O JSON PURO (sem texto, sem explicação, sem ```markdown```):"""
         logger.info(f"Modo ARQUIVO: dados do arquivo injetados no prompt ({len(dados_arquivo)} chars)")
