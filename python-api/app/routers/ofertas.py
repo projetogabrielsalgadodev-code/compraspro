@@ -320,7 +320,7 @@ async def analisar_oferta_async_file(
                     status_code=400,
                     detail="Nenhum dado encontrado no arquivo enviado.",
                 )
-            dados_arquivo_str = format_file_data_for_prompt(rows)
+            dados_arquivo_str = format_file_data_for_prompt(rows, texto_oferta=texto_bruto)
             logger.info(f"Arquivo {filename} parseado: {len(rows)} registros → {len(dados_arquivo_str)} chars para prompt")
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))

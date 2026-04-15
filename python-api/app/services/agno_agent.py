@@ -394,35 +394,44 @@ async def executar_analise_oferta(
         # Sem tools, o Claude foca em analisar os dados e retornar JSON puro
         agent = criar_agente_analise(empresa_id, model_id, use_tools=False)
         
-        prompt = f"""Analise a seguinte oferta de fornecedor comparando com os dados históricos do arquivo enviado pelo cliente.
+        prompt = f"""Analise a seguinte oferta de fornecedor. Os dados históricos do arquivo do cliente JÁ FORAM CRUZADOS com os itens da oferta pelo sistema.
 
 --- OFERTA DO FORNECEDOR ---
 {texto_bruto}
 --- FIM DA OFERTA ---
 
---- DADOS HISTÓRICOS DO ARQUIVO DO CLIENTE ---
+--- DADOS HISTÓRICOS JÁ CRUZADOS COM A OFERTA ---
 {dados_arquivo}
---- FIM DOS DADOS HISTÓRICOS ---
+--- FIM DOS DADOS CRUZADOS ---
 
-INSTRUÇÕES ESPECIAIS (MODO ARQUIVO):
-- Use os dados do arquivo acima como fonte PRIMÁRIA e ÚNICA de referência para histórico de preços.
-- NÃO chame nenhuma tool/função. Todos os dados necessários estão no arquivo acima.
-- Para cada item da oferta, procure o EAN ou descrição correspondente nos dados do arquivo.
-- O "menor_historico" deve ser o menor preço unitário encontrado no arquivo para aquele EAN/produto.
-- Use a média de preço do arquivo para calcular a variacao_percentual: ((media - preco_oferta) / media) * 100.
-- Se variacao_percentual > 0, significa desconto (oferta mais barata que a média).
-- Se não encontrar o EAN/produto no arquivo, use confianca_match="baixo" e menor_historico=null.
-- Calcule a demanda_mes a partir do total de unidades do arquivo dividido pelo número de meses de cobertura dos dados.
-- Defina estoque_item=0 e estoque_equivalentes=0 (dados não disponíveis no arquivo).
-- sugestao_pedido=0 quando não há dados suficientes.
+INSTRUÇÕES (MODO ARQUIVO — DADOS PRÉ-CRUZADOS):
+Os dados acima já contêm o resultado do matching entre a oferta e o arquivo do cliente.
+Para cada item marcado como "MATCH ENCONTRADO":
+- Use o EAN do match como campo "ean"
+- Use a "Descrição no arquivo" como campo "descricao_produto"
+- Use o "Menor preço pago" como campo "menor_historico"
+- Calcule variacao_percentual = ((media_historico - preco_oferta) / media_historico) * 100
+  - Se positivo → oferta é mais barata que a média (bom!)
+  - Se negativo → oferta é mais cara que a média (ruim!)
+- Use a "Demanda mensal estimada" como campo "demanda_mes"
+- Use a "confiança" do match como campo "confianca_match"
+- Defina estoque_item=0 e estoque_equivalentes=0 (não disponível no arquivo)
+- Calcule sugestao_pedido baseado na demanda_mes (ex: demanda de 1 mês)
 
-Para cada item identificado na oferta:
-1. Busque o EAN/descrição correspondente nos dados do arquivo acima
-2. Compare o preço da oferta com o menor/média histórico do arquivo
-3. Classifique a oferta conforme as regras do sistema
-4. Gere uma recomendação contextualizada
+Para itens "SEM MATCH":
+- ean=null, descricao_produto=null, menor_historico=null
+- variacao_percentual=null, confianca_match="baixo"
+- classificacao="descartavel" (sem dados para avaliar)
 
-APÓS ANALISAR TODOS OS ITENS, RETORNE **APENAS** O JSON PURO (sem texto, sem explicação, sem markdown)."""
+REGRAS DE CLASSIFICAÇÃO (usar com os dados cruzados):
+- "ouro": variacao_percentual > 20% (desconto forte vs média)
+- "prata": variacao_percentual entre 5% e 20%
+- "atencao": variacao_percentual entre 0% e 5%
+- "descartavel": variacao_percentual < 0% (oferta mais cara) ou sem match
+
+RECOMENDAÇÃO: Escreva em português brasileiro, 1-2 frases objetivas com dados numéricos.
+
+RETORNE **APENAS** O JSON PURO (sem texto, sem explicação, sem ```markdown```):"""
         logger.info(f"Modo ARQUIVO: dados do arquivo injetados no prompt ({len(dados_arquivo)} chars)")
     else:
         # Modo BANCO DE DADOS: fluxo padrão com tools consultando Supabase
