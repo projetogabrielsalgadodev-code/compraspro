@@ -397,416 +397,72 @@ async def executar_analise_oferta(
     rows_arquivo: list[dict] | None = None,
 ) -> tuple[AnaliseOfertaAgnoOutput, dict]:
     """
-    Executa a analise de oferta completa.
-
-    MODO ARQUIVO (rows_arquivo presente):
-      Fluxo deterministico de 3 fases - SEM LLM para calculos:
-      1. Extrai itens da oferta (regex -> LLM fallback)
-      2. Calcula tudo em Python (matching, variacao, classificacao, recomendacao)
-      3. Retorna resultado 100% preciso
-
-    MODO BANCO DE DADOS (sem rows_arquivo):
-      Fluxo com agente Agno + tools consultando Supabase.
-
-    Returns:
-        Tuple of (AnaliseOfertaAgnoOutput, metrics_dict).
-        metrics_dict contains: tempo_processamento_ms, tokens_utilizados, custo_reais.
+    Executa a analise de oferta completa de forma 100% DETERMINISTICA.
+    
+    Tanto para modo Arquivo quanto modo Banco:
+      1. Extrai itens da oferta via LLM (com fallback regex)
+      2. Constroi indice em memoria (do arquivo ou do banco restrito a empresa)
+      3. Cruza dados em Python (match + variacao + classificacao)
     """
-    # ─── Modo ARQUIVO DETERMINISTICO: fluxo de 3 fases SEM LLM ─────────────
-    if rows_arquivo is not None:
-        from app.services.offer_extractor import extrair_itens
-        from app.services.analysis_engine import (
-            construir_indice_arquivo,
-            executar_analise_deterministico,
-        )
-
-        logger.info(f"Modo ARQUIVO DETERMINISTICO: {len(rows_arquivo)} rows, texto={len(texto_bruto)} chars")
-        start_time = time.time()
-
-        # FASE 1: Extrair itens da oferta (regex com fallback LLM)
-        fornecedor_extraido, itens_extraidos = await extrair_itens(texto_bruto)
-        logger.info(f"Fase 1 (extracao): {len(itens_extraidos)} itens, fornecedor={fornecedor_extraido}")
-
-        if not itens_extraidos:
-            raise ValueError(
-                "Nao foi possivel extrair itens da oferta. "
-                "Verifique se o texto contem produtos com precos."
-            )
-
-        # FASE 2: Construir indice + calculos deterministicos
-        ean_stats, token_index = construir_indice_arquivo(rows_arquivo)
-        resultado = executar_analise_deterministico(
-            itens_extraidos=itens_extraidos,
-            fornecedor=fornecedor_extraido,
-            ean_stats=ean_stats,
-            token_index=token_index,
-            total_registros=len(rows_arquivo),
-        )
-
-        elapsed_ms = int((time.time() - start_time) * 1000)
-
-        # Metricas (zero tokens LLM se regex funcionou)
-        metrics_dict = {
-            "tempo_processamento_ms": elapsed_ms,
-            "tokens_utilizados": 0,
-            "custo_reais": 0.0,
-        }
-
-        logger.info(f"Analise deterministica concluida em {elapsed_ms}ms - ZERO custo LLM")
-
-        # Construir output Pydantic
-        from app.models.schemas import ItemAnaliseAgno
-        itens_agno = []
-        for item in resultado["itens"]:
-            itens_agno.append(ItemAnaliseAgno(**item))
-
-        return AnaliseOfertaAgnoOutput(
-            fornecedor=resultado["fornecedor"],
-            itens=itens_agno,
-        ), metrics_dict
-
-    # ─── Modo ARQUIVO LEGADO (compatibilidade com dados_arquivo string) ───
-    # Montar prompt baseado na fonte de dados
-    if dados_arquivo:
-        # Modo ARQUIVO: agente SEM tools — todos os dados vêm do arquivo
-        # Sem tools, o Claude foca em analisar os dados e retornar JSON puro
-        agent = criar_agente_analise(empresa_id, model_id, use_tools=False)
-        
-        prompt = f"""Analise a seguinte oferta de fornecedor. Os dados históricos do arquivo do cliente JÁ FORAM CRUZADOS com os itens da oferta pelo sistema.
-
---- OFERTA DO FORNECEDOR ---
-{texto_bruto}
---- FIM DA OFERTA ---
-
---- DADOS HISTÓRICOS JÁ CRUZADOS COM A OFERTA ---
-{dados_arquivo}
---- FIM DOS DADOS CRUZADOS ---
-
-INSTRUÇÕES (MODO ARQUIVO — DADOS PRÉ-CRUZADOS):
-Os dados acima já contêm o resultado do matching entre a oferta e o arquivo do cliente.
-Para cada item marcado como "MATCH ENCONTRADO", mapeie os campos assim:
-- "ean" ← EAN do match
-- "descricao_produto" ← "Descrição no arquivo"
-- "menor_historico" ← "Menor preço pago" (preço unitário histórico mais baixo)
-- "variacao_percentual" ← ((menor_historico - preco_oferta) / menor_historico) × 100
-  - Se POSITIVO → oferta mais barata que o menor histórico (DESCONTO) ✅
-  - Se NEGATIVO → oferta mais cara que o menor histórico (ÁGIO) ❌
-  - EXEMPLO: menor_historico=R$5.77, preco_oferta=R$4.24 → ((5.77-4.24)/5.77)×100 = 26.5%
-- "demanda_mes" ← "Demanda mensal estimada"
-- "confianca_match" ← valor informado no match ("alto"/"medio"/"baixo")
-- "estoque_item" ← 0 (não disponível no arquivo)
-- "estoque_equivalentes" ← 0 (não disponível no arquivo)
-- "sugestao_pedido" ← max(0, round(demanda_mes × 3))
-  (sugestão para cobrir ~3 meses de demanda; sem estoque, é demanda_mes × 3)
-
-Para itens "SEM MATCH":
-- ean=null, descricao_produto=null, menor_historico=null
-- variacao_percentual=null, confianca_match="baixo"
-- classificacao="descartavel", sugestao_pedido=0, demanda_mes=0
-- recomendacao="Produto não encontrado no histórico de compras. Sem dados para avaliar."
-
-REGRAS DE CLASSIFICAÇÃO (baseadas na variacao_percentual vs MENOR histórico):
-- "ouro": variacao_percentual ≥ 20% (desconto forte). Comprar imediatamente.
-- "prata": variacao_percentual entre 5% e 20% (desconto moderado). Boa oportunidade.
-- "atencao": variacao_percentual entre 0% e 5% (desconto marginal). Revisar antes.
-- "descartavel": variacao_percentual < 0% (ágio, oferta mais cara) ou sem match.
-
-RECOMENDAÇÃO: Escreva em pt-BR, 1-2 frases com dados numéricos (% desconto, menor histórico, demanda).
-- Ouro: "Oportunidade excelente! Desconto de X% vs menor histórico (R$Y). Sugestão: comprar Z unidades."
-- Prata: "Desconto de X% vs menor histórico. Boa oportunidade de compra."
-- Atencao: "Desconto marginal de X%. Avaliar necessidade antes de comprar."
-- Descartavel: "Preço X% acima do menor histórico (R$Y). Não recomendado."
-
-RETORNE **APENAS** O JSON PURO (sem texto, sem explicação, sem ```markdown```):"""
-        logger.info(f"Modo ARQUIVO: dados do arquivo injetados no prompt ({len(dados_arquivo)} chars)")
-    else:
-        # Modo BANCO DE DADOS: fluxo padrão com tools consultando Supabase
-        agent = criar_agente_analise(empresa_id, model_id, use_tools=True)
-        prompt = f"""Analise a seguinte oferta de fornecedor e processe cada item conforme o fluxo obrigatório.
-
---- OFERTA DO FORNECEDOR ---
-{texto_bruto}
---- FIM DA OFERTA ---
-
-Para cada item identificado na oferta acima:
-1. Busque o produto no catálogo (por EAN ou descrição)
-2. Consulte o histórico de preços
-3. Busque equivalentes se houver princípio ativo
-4. Classifique a oferta
-5. Gere uma recomendação contextualizada
-
-Após analisar TODOS os itens, retorne APENAS o bloco JSON com o resultado completo."""
-
-    logger.info(f"Executando análise Agno — empresa={empresa_id}, texto={len(texto_bruto)} chars")
+    from app.services.offer_extractor import extrair_itens
+    from app.services.analysis_engine import (
+        construir_indice_arquivo,
+        construir_indice_banco,
+        executar_analise_deterministico,
+    )
+    from app.models.schemas import ItemAnaliseAgno
 
     start_time = time.time()
-    response = await agent.arun(prompt)
+    
+    # FASE 1: Extrair itens da oferta (LLM formatado para List[Dict] ou Regex)
+    fornecedor_extraido, itens_extraidos = await extrair_itens(texto_bruto)
+    logger.info(f"Fase 1 (extracao): {len(itens_extraidos)} itens, fornecedor={fornecedor_extraido}")
+
+    if not itens_extraidos:
+        raise ValueError(
+            "Nao foi possivel extrair itens da oferta. "
+            "Verifique se o texto contem produtos com precos."
+        )
+
+    # FASE 2: Construir indice de dados
+    if rows_arquivo is not None:
+        logger.info(f"Modo ARQUIVO DETERMINISTICO: {len(rows_arquivo)} linhas")
+        ean_stats, token_index = construir_indice_arquivo(rows_arquivo)
+        total_rows = len(rows_arquivo)
+    else:
+        logger.info(f"Modo BANCO DETERMINISTICO: empresa={empresa_id}")
+        ean_stats, token_index = construir_indice_banco(empresa_id)
+        total_rows = len(ean_stats)
+
+    # FASE 3: Calculos determinísticos em Python puro
+    resultado = executar_analise_deterministico(
+        itens_extraidos=itens_extraidos,
+        fornecedor=fornecedor_extraido,
+        ean_stats=ean_stats,
+        token_index=token_index,
+        total_registros=total_rows,
+    )
+
     elapsed_ms = int((time.time() - start_time) * 1000)
 
-    # ─── Extrair métricas de token usage ─────────────────────────────────────
-    input_t = 0
-    output_t = 0
-    total_tokens = 0
-    custo_reais = 0.0
-
-    try:
-        # Agno acumula tokens chamada a chamada — metrics é um dict com listas
-        if hasattr(response, "metrics") and response.metrics:
-            m = response.metrics
-            if isinstance(m, dict):
-                input_t = _to_int(m.get("input_tokens", 0))
-                output_t = _to_int(m.get("output_tokens", 0))
-            else:
-                input_t = _to_int(getattr(m, "input_tokens", 0))
-                output_t = _to_int(getattr(m, "output_tokens", 0))
-            total_tokens = input_t + output_t
-            logger.debug(f"Tokens via response.metrics: in={input_t} out={output_t}")
-
-        # Fallback: response_usage (presente em algumas versões)
-        if total_tokens == 0 and hasattr(response, "response_usage") and response.response_usage:
-            u = response.response_usage
-            if isinstance(u, dict):
-                input_t = _to_int(u.get("input_tokens", 0))
-                output_t = _to_int(u.get("output_tokens", 0))
-            else:
-                input_t = _to_int(getattr(u, "input_tokens", 0))
-                output_t = _to_int(getattr(u, "output_tokens", 0))
-            total_tokens = input_t + output_t
-            logger.debug(f"Tokens via response_usage: in={input_t} out={output_t}")
-
-        # Fallback final: somar tokens de cada mensagem
-        if total_tokens == 0 and hasattr(response, "messages") and response.messages:
-            for msg in response.messages:
-                msg_usage = getattr(msg, "metrics", None) or getattr(msg, "usage", None)
-                if msg_usage:
-                    if isinstance(msg_usage, dict):
-                        input_t += _to_int(msg_usage.get("input_tokens", 0))
-                        output_t += _to_int(msg_usage.get("output_tokens", 0))
-                    else:
-                        input_t += _to_int(getattr(msg_usage, "input_tokens", 0))
-                        output_t += _to_int(getattr(msg_usage, "output_tokens", 0))
-            total_tokens = input_t + output_t
-            if total_tokens > 0:
-                logger.debug(f"Tokens via messages: in={input_t} out={output_t}")
-
-    except Exception as e:
-        logger.warning(f"Não foi possível extrair token usage: {e}")
-
-    # Estimativa de custo (Claude Sonnet — preços aproximados mai/2025):
-    # Input: $3/1M tokens | Output: $15/1M tokens | USD/BRL ≈ R$ 5.75
-    if total_tokens > 0:
-        try:
-            custo_usd = (input_t / 1_000_000) * 3.0 + (output_t / 1_000_000) * 15.0
-            custo_reais = round(custo_usd * 5.75, 4)
-        except Exception:
-            custo_reais = 0.0
-
+    # Metricas (custo do LLM para a fase 1 fica na fase 1 se implementado, mas passamos 0 como fallback)
     metrics_dict = {
         "tempo_processamento_ms": elapsed_ms,
-        "tokens_utilizados": total_tokens,
-        "custo_reais": custo_reais,
+        "tokens_utilizados": 0,
+        "custo_reais": 0.0,
     }
-    logger.info(
-        f"Análise concluída — {elapsed_ms}ms | {total_tokens} tokens "
-        f"(in={input_t} out={output_t}) | ~R${custo_reais:.4f}"
-    )
 
-    # ─── Extrair resultado estruturado ───────────────────────────────────────
-    content = response.content
-    logger.warning(f"[DEBUG-PARSE] response.content type={type(content).__name__}, length={len(str(content))}, preview={str(content)[:500]}")
-    if hasattr(response, "messages") and response.messages:
-        for idx, msg in enumerate(response.messages):
-            mc = getattr(msg, "content", None)
-            logger.warning(f"[DEBUG-PARSE] message[{idx}] role={getattr(msg, 'role', '?')}, content type={type(mc).__name__}, preview={str(mc)[:300]}")
+    logger.info(f"Analise deterministica concluida em {elapsed_ms}ms")
 
-    # Caso 1: Já é o tipo correto (improvável sem response_model, mas cobre bases)
-    if isinstance(content, AnaliseOfertaAgnoOutput):
-        return content, metrics_dict
-
-    # Caso 2: dict direto
-    if isinstance(content, dict):
+    # FASE 4: Montar o Output
+    itens_agno = []
+    for item in resultado["itens"]:
         try:
-            return AnaliseOfertaAgnoOutput(**content), metrics_dict
+            itens_agno.append(ItemAnaliseAgno(**item))
         except Exception as e:
-            logger.warning(f"Falha ao construir schema de dict: {e}")
+            logger.warning(f"Erro ao montar ItemAnaliseAgno: {e} - Dados: {item}")
 
-    # Caso 3: string (principal — Claude retorna texto + bloco JSON)
-    if isinstance(content, str) and content.strip():
-        data = _extrair_json_de_string(content)
-        if data is not None:
-            data = _normalizar_output(data)
-            try:
-                return AnaliseOfertaAgnoOutput(**data), metrics_dict
-            except Exception as e:
-                logger.warning(f"Falha ao parsear JSON extraído da string: {e}")
-                # Tenta com itens individuais normalizados e validação permissiva
-                try:
-                    from pydantic import ValidationError
-                    itens_validos = []
-                    for item_raw in data.get("itens", []):
-                        try:
-                            from app.models.schemas import ItemAnaliseAgno
-                            itens_validos.append(ItemAnaliseAgno(**_normalizar_item(item_raw)))
-                        except Exception:
-                            pass
-                    if itens_validos:
-                        return AnaliseOfertaAgnoOutput(
-                            fornecedor=data.get("fornecedor"),
-                            itens=itens_validos,
-                        ), metrics_dict
-                except Exception:
-                    pass
-
-    # Caso 4: lista de mensagens retornadas pelo Agno
-    if isinstance(content, list):
-        for item in reversed(content):
-            if isinstance(item, AnaliseOfertaAgnoOutput):
-                return item, metrics_dict
-            if isinstance(item, dict) and "itens" in item:
-                try:
-                    return AnaliseOfertaAgnoOutput(**item), metrics_dict
-                except Exception:
-                    pass
-            inner = getattr(item, "content", None)
-            if inner is None:
-                continue
-            if isinstance(inner, AnaliseOfertaAgnoOutput):
-                return inner, metrics_dict
-            if isinstance(inner, dict) and "itens" in inner:
-                try:
-                    return AnaliseOfertaAgnoOutput(**inner), metrics_dict
-                except Exception:
-                    pass
-            if isinstance(inner, str):
-                data = _extrair_json_de_string(inner)
-                if data is not None:
-                    data = _normalizar_output(data)
-                    try:
-                        return AnaliseOfertaAgnoOutput(**data), metrics_dict
-                    except Exception:
-                        pass
-
-    # Caso 5: varrer response.messages diretamente
-    if hasattr(response, "messages") and response.messages:
-        for msg in reversed(response.messages):
-            msg_content = getattr(msg, "content", None)
-            if isinstance(msg_content, AnaliseOfertaAgnoOutput):
-                return msg_content, metrics_dict
-            if isinstance(msg_content, dict) and "itens" in msg_content:
-                try:
-                    return AnaliseOfertaAgnoOutput(**msg_content), metrics_dict
-                except Exception:
-                    pass
-            if isinstance(msg_content, str) and msg_content.strip():
-                data = _extrair_json_de_string(msg_content)
-                if data is not None:
-                    data = _normalizar_output(data)
-                    try:
-                        return AnaliseOfertaAgnoOutput(**data), metrics_dict
-                    except Exception:
-                        pass
-
-    # ─── Caso 6: RETRY — pedir ao agente para formatar o JSON corretamente ────
-    logger.warning(
-        f"Parsing inicial falhou. Tentando retry com prompt de formatação. "
-        f"content type={type(content).__name__}, preview={str(content)[:500]}"
-    )
-    try:
-        retry_result = await _retry_json_formatting(agent, content)
-        if retry_result is not None:
-            return retry_result, metrics_dict
-    except Exception as retry_err:
-        logger.warning(f"Retry de formatação também falhou: {retry_err}")
-
-    logger.error(
-        f"Não foi possível extrair AnaliseOfertaAgnoOutput após retry. "
-        f"content type={type(content).__name__}, value={str(content)[:1000]}"
-    )
-    raise ValueError(
-        f"O agente retornou uma resposta em formato inesperado ({type(content).__name__}). "
-        "Verifique os logs para detalhes."
-    )
-
-
-async def _retry_json_formatting(agent: Agent, original_content: Any) -> AnaliseOfertaAgnoOutput | None:
-    """Envia um prompt de retry pedindo ao agente para formatar o JSON corretamente.
-
-    Quando o agente retorna texto narrativo (comum com contextos grandes ou
-    erros de tools), tentamos fazer um segundo chamado curto pedindo apenas o JSON.
-    """
-    content_str = str(original_content)[:8000]  # limitar para não estourar contexto
-
-    retry_prompt = f"""Sua resposta anterior continha texto narrativo mas eu preciso APENAS do JSON estruturado.
-
-Aqui está sua resposta anterior:
----
-{content_str}
----
-
-Extraia os dados da sua resposta acima e retorne APENAS um JSON puro (sem markdown, sem texto explicativo) no formato:
-{{
-  "fornecedor": "nome ou null",
-  "itens": [
-    {{
-      "descricao_original": "...",
-      "preco_oferta": 0.00,
-      "ean": "... ou null",
-      "descricao_produto": "... ou null",
-      "menor_historico": 0.00,
-      "variacao_percentual": 0.0,
-      "estoque_item": 0,
-      "demanda_mes": 0.0,
-      "sugestao_pedido": 0,
-      "estoque_equivalentes": 0,
-      "classificacao": "ouro|prata|atencao|descartavel",
-      "confianca_match": "alto|medio|baixo",
-      "recomendacao": "...",
-      "equivalentes": []
-    }}
-  ]
-}}
-
-RETORNE APENAS O JSON ACIMA, SEM NENHUM TEXTO ANTES OU DEPOIS."""
-
-    logger.info("Executando retry de formatação JSON...")
-    retry_response = await agent.arun(retry_prompt)
-    retry_content = retry_response.content
-    logger.info(f"Retry response type={type(retry_content).__name__}, preview={str(retry_content)[:300]}")
-
-    if isinstance(retry_content, str) and retry_content.strip():
-        data = _extrair_json_de_string(retry_content)
-        if data is not None:
-            data = _normalizar_output(data)
-            try:
-                result = AnaliseOfertaAgnoOutput(**data)
-                logger.info("Retry de formatação JSON: SUCESSO")
-                return result
-            except Exception as e:
-                logger.warning(f"Retry: JSON extraído mas schema falhou: {e}")
-                # Tentar com itens individuais
-                try:
-                    from app.models.schemas import ItemAnaliseAgno
-                    itens_validos = []
-                    for item_raw in data.get("itens", []):
-                        try:
-                            itens_validos.append(ItemAnaliseAgno(**_normalizar_item(item_raw)))
-                        except Exception:
-                            pass
-                    if itens_validos:
-                        result = AnaliseOfertaAgnoOutput(
-                            fornecedor=data.get("fornecedor"),
-                            itens=itens_validos,
-                        )
-                        logger.info(f"Retry: construído com {len(itens_validos)} itens individuais")
-                        return result
-                except Exception:
-                    pass
-
-    if isinstance(retry_content, dict) and "itens" in retry_content:
-        try:
-            return AnaliseOfertaAgnoOutput(**retry_content)
-        except Exception:
-            pass
-
-    logger.warning("Retry de formatação JSON: falhou")
-    return None
+    return AnaliseOfertaAgnoOutput(
+        fornecedor=resultado["fornecedor"],
+        itens=itens_agno,
+    ), metrics_dict

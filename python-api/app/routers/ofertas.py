@@ -17,6 +17,8 @@ from __future__ import annotations
 import logging
 from collections import Counter
 from uuid import uuid4
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 
@@ -60,14 +62,14 @@ def _build_itens_response(resultado_agno) -> list[ItemOfertaResponse]:
                 ean=item.ean,
                 descricao_original=item.descricao_original,
                 descricao_produto=item.descricao_produto,
-                preco_oferta=item.preco_oferta,
-                menor_historico=item.menor_historico,
+                preco_oferta=item.preco_oferta if item.preco_oferta is not None else 0.0,
+                menor_historico=item.menor_historico if item.menor_historico is not None else 0.0,
                 origem_menor_historico=getattr(item, "origem_menor_historico", None),
-                variacao_percentual=item.variacao_percentual,
-                estoque_item=item.estoque_item,
-                demanda_mes=item.demanda_mes,
-                sugestao_pedido=item.sugestao_pedido,
-                estoque_equivalentes=item.estoque_equivalentes,
+                variacao_percentual=item.variacao_percentual if item.variacao_percentual is not None else 0.0,
+                estoque_item=item.estoque_item if item.estoque_item is not None else 0,
+                demanda_mes=item.demanda_mes if item.demanda_mes is not None else 0.0,
+                sugestao_pedido=item.sugestao_pedido if item.sugestao_pedido is not None else 0,
+                estoque_equivalentes=item.estoque_equivalentes if item.estoque_equivalentes is not None else 0,
                 classificacao=item.classificacao,
                 confianca_match=item.confianca_match,
                 recomendacao=item.recomendacao,
@@ -138,6 +140,7 @@ async def _executar_e_persistir(
                         tempo_processamento_ms=metrics.get("tempo_processamento_ms"),
                         tokens_utilizados=metrics.get("tokens_utilizados"),
                         custo_reais=metrics.get("custo_reais"),
+                        created_at=datetime.now(ZoneInfo("UTC")).isoformat(),
                     ),
                 )
 
@@ -159,6 +162,7 @@ async def _executar_e_persistir(
                     confianca_match=item.confianca_match,
                     recomendacao=item.recomendacao,
                     dados_json=item.model_dump(),
+                    created_at=datetime.now(ZoneInfo("UTC")).isoformat(),
                 )
                 for item in resultado_agno.itens
             ]
@@ -263,6 +267,7 @@ async def analisar_oferta_async(
                 "origem": "texto",
                 "entrada_bruta": payload.texto_bruto,
                 "status": "processando",
+                "created_at": datetime.now(ZoneInfo("UTC")).isoformat(),
             }).execute()
         except Exception as e:
             logger.warning(f"Falha ao criar registro inicial: {e}")
@@ -290,7 +295,7 @@ async def analisar_oferta_async(
 async def analisar_oferta_async_file(
     background_tasks: BackgroundTasks,
     empresa_id: str = Depends(get_current_empresa_id),
-    texto_bruto: str = Form(...),
+    texto_bruto: str = Form(""),
     fonte_dados: str = Form("banco"),
     fornecedor_informado: str = Form(None),
     usuario_id: str = Form(None),
@@ -313,10 +318,10 @@ async def analisar_oferta_async_file(
             detail="ANTHROPIC_API_KEY não configurada.",
         )
 
-    if not texto_bruto or not texto_bruto.strip():
+    if fonte_dados != "arquivo" and (not texto_bruto or not texto_bruto.strip()):
         raise HTTPException(
             status_code=400,
-            detail="texto_bruto é obrigatório.",
+            detail="texto_bruto é obrigatório quando não usar arquivo.",
         )
 
     # Parsear arquivo se fonte_dados=arquivo
@@ -361,6 +366,7 @@ async def analisar_oferta_async_file(
                 "origem": "arquivo" if fonte_dados == "arquivo" else "texto",
                 "entrada_bruta": texto_bruto,
                 "status": "processando",
+                "created_at": datetime.now(ZoneInfo("UTC")).isoformat(),
             }).execute()
         except Exception as e:
             logger.warning(f"Falha ao criar registro inicial: {e}")

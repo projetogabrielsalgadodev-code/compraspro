@@ -74,14 +74,14 @@ class ItemOfertaResponse(BaseModel):
     ean: str | None = None
     descricao_original: str
     descricao_produto: str | None = None
-    preco_oferta: float | None = None
-    menor_historico: float | None = None
+    preco_oferta: float
+    menor_historico: float = 0.0
     origem_menor_historico: str | None = None
-    variacao_percentual: float | None = None
-    estoque_item: int | None = None
-    demanda_mes: float | None = None
-    sugestao_pedido: int | None = None
-    estoque_equivalentes: int | None = None
+    variacao_percentual: float = 0.0
+    estoque_item: int = 0
+    demanda_mes: float = 0.0
+    sugestao_pedido: int = 0
+    estoque_equivalentes: int = 0
     classificacao: ClassificacaoOferta
     confianca_match: ConfiancaMatch
     recomendacao: str
@@ -143,6 +143,7 @@ class AnaliseCreate(BaseModel):
     tempo_processamento_ms: int | None = None
     tokens_utilizados: int | None = None
     custo_reais: float | None = None
+    created_at: str | None = None
 
 
 class AnaliseItemCreate(BaseModel):
@@ -163,6 +164,7 @@ class AnaliseItemCreate(BaseModel):
     confianca_match: str | None = None
     recomendacao: str | None = None
     dados_json: dict[str, Any] = Field(default_factory=dict)
+    created_at: str | None = None
 
 
 # ─── Schema de saída estruturada do Agno Agent ────────────────────────────────

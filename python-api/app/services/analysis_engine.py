@@ -168,7 +168,8 @@ def _match_item_no_arquivo(
             "maior_preco": stats["maior_preco"],
             "qtd_entradas": stats["qtd_entradas"],
             "qtde_total": stats["qtde_total"],
-            "demanda_mes": _calcular_demanda_mes(stats),
+            "demanda_mes": stats.get("demanda_mes") or _calcular_demanda_mes(stats),
+            "estoque_item": stats.get("estoque_item", 0),
             "primeira_data": stats["primeira_data"],
             "ultima_data": stats["ultima_data"],
         }
@@ -219,7 +220,8 @@ def _match_item_no_arquivo(
         "maior_preco": stats["maior_preco"],
         "qtd_entradas": stats["qtd_entradas"],
         "qtde_total": stats["qtde_total"],
-        "demanda_mes": _calcular_demanda_mes(stats),
+        "demanda_mes": stats.get("demanda_mes") or _calcular_demanda_mes(stats),
+        "estoque_item": stats.get("estoque_item", 0),
         "primeira_data": stats["primeira_data"],
         "ultima_data": stats["ultima_data"],
     }
@@ -255,13 +257,15 @@ def buscar_equivalentes(
     1. Extrair tokens farmacologicos da descricao (>= 5 chars, alfa)
     2. Buscar no token_index todos os EANs que compartilham esses tokens
     3. Filtrar: remover o EAN do match principal
-    4. Ranquear por numero de tokens em comum
-    5. Retornar top N com dados de preco
+    4. Filtrar: manter apenas equivalentes da MESMA categoria farmaceutica
+    5. Ranquear por numero de tokens em comum
+    6. Retornar top N com dados de preco
 
     Returns:
         Lista de dicts {ean, descricao, menor_preco, media_preco, qtd_entradas, demanda_mes}
     """
     from app.services.file_parser import _extract_tokens
+    from app.services.offer_extractor import _classificar_forma_farmaceutica
 
     tokens = _extract_tokens(descricao)
     # Tokens farmacologicos: >= 5 chars, apenas letras (moleculas, principios ativos)
@@ -269,6 +273,9 @@ def buscar_equivalentes(
 
     if not drug_tokens:
         return []
+
+    # Categoria do produto original — usada para filtrar equivalentes
+    categoria_original = _classificar_forma_farmaceutica(descricao)
 
     # Contar score de cada EAN candidato
     candidate_scores: dict[str, float] = {}
@@ -303,6 +310,12 @@ def buscar_equivalentes(
         if not common:
             continue
 
+        # Filtrar por mesma categoria farmacêutica (não misturar líquido com sólido)
+        cat_equivalente = _classificar_forma_farmaceutica(stats.get("descricao", ""))
+        if categoria_original != "unknown" and cat_equivalente != "unknown":
+            if categoria_original != cat_equivalente:
+                continue  # Não comparar frasco com sachê, comprimido com xarope, etc.
+
         equivalentes.append({
             "ean": ean,
             "descricao": stats["descricao"],
@@ -329,6 +342,7 @@ def construir_indice_arquivo(rows: list[dict]) -> tuple[dict[str, dict], dict[st
     from collections import defaultdict
     from statistics import mean
     from app.services.file_parser import _calcular_preco_unitario, _parse_number, _extract_tokens
+    from app.services.offer_extractor import extrair_multiplicador_inteligente
 
     by_ean: dict[str, list[dict]] = defaultdict(list)
 
@@ -344,10 +358,21 @@ def construir_indice_arquivo(rows: list[dict]) -> tuple[dict[str, dict], dict[st
         descricao = ""
         qtde_total = 0.0
 
+        # Primeiro, encontrar a descricao para calcular o multiplicador
+        for e in entries:
+            if not descricao and e.get("descricao"):
+                descricao = str(e["descricao"]).strip()
+
+        # Calcular multiplicador inteligente baseado na categoria do produto
+        mult = extrair_multiplicador_inteligente(descricao) if descricao else 1.0
+        if mult <= 0:
+            mult = 1.0
+
         for e in entries:
             pu = _calcular_preco_unitario(e)
             if pu and pu > 0:
-                precos.append(pu)
+                # Normalizar preço pela mesma regra usada na oferta
+                precos.append(round(pu / mult, 4))
             d = e.get("data_entrada")
             if d:
                 datas.append(str(d))
@@ -379,6 +404,121 @@ def construir_indice_arquivo(rows: list[dict]) -> tuple[dict[str, dict], dict[st
     logger.info(f"Indice construido: {len(ean_stats)} EANs, {len(token_index)} tokens")
     return ean_stats, token_index
 
+def construir_indice_banco(empresa_id: str) -> tuple[dict[str, dict], dict[str, list[str]]]:
+    """
+    Constroi o indice deterministico baixando produtos e historico do Supabase.
+    Isso substitui as queries granulares por uma carga massiva no inicio da analise.
+    """
+    from app.db.supabase_client import get_supabase_client
+    from app.services.persistencia_service import buscar_produtos, buscar_historico
+    from app.services.file_parser import _extract_tokens
+    from statistics import mean
+
+    client = get_supabase_client()
+    if not client:
+        logger.warning("Supabase não configurado. Índice de banco retornará vazio.")
+        return {}, {}
+
+    produtos = buscar_produtos(client, empresa_id)
+    historico = buscar_historico(client, empresa_id)
+
+    ean_stats: dict[str, dict] = {}
+    for p in produtos:
+        ean = str(p.get("ean") or "").strip()
+        if not ean:
+            continue
+            
+        descricao = str(p.get("descricao") or "").strip()
+        entries = historico.get(ean, [])
+        
+        precos = []
+        datas = []
+        qtde_total = 0.0
+
+        for e in entries:
+            try:
+                pu = float(e.get("preco_unitario") or 0)
+                if pu > 0:
+                    precos.append(pu)
+            except Exception:
+                pass
+            
+            d = e.get("data_entrada")
+            if d:
+                datas.append(str(d))
+            
+            try:
+                qtd = float(e.get("quantidade_unitaria") or 0)
+                qtde_total += qtd
+            except Exception:
+                # Fall back to try to extract from valor_total / preco se precisar, mas quantidade_unitaria e padrao
+                pass
+
+        demanda_mes = float(p.get("demanda_mes") or 0)
+        estoque_item = int(float(p.get("estoque") or 0))
+
+        ean_stats[ean] = {
+            "ean": ean,
+            "descricao": descricao,
+            "qtd_entradas": len(entries),
+            "qtde_total": qtde_total,
+            "demanda_mes": demanda_mes,
+            "estoque_item": estoque_item,
+            "menor_preco": min(precos) if precos else None,
+            "media_preco": round(mean(precos), 4) if precos else None,
+            "maior_preco": max(precos) if precos else None,
+            "primeira_data": min(datas) if datas else "N/A",
+            "ultima_data": max(datas) if datas else "N/A",
+        }
+
+    # Adicionar itens no historico que talvez NÃO tenham cadastro no produto
+    for ean_hist, entries in historico.items():
+        if ean_hist not in ean_stats:
+            precos = []
+            datas = []
+            qtde_total = 0.0
+            
+            for e in entries:
+                try:
+                    pu = float(e.get("preco_unitario") or 0)
+                    if pu > 0:
+                        precos.append(pu)
+                except:
+                    pass
+                d = e.get("data_entrada")
+                if d:
+                    datas.append(str(d))
+                try:
+                    qtd = float(e.get("quantidade_unitaria") or 0)
+                    qtde_total += qtd
+                except:
+                    pass
+                    
+            ean_stats[ean_hist] = {
+                "ean": ean_hist,
+                "descricao": f"Item {ean_hist} (sem cadastro)",
+                "qtd_entradas": len(entries),
+                "qtde_total": qtde_total,
+                "demanda_mes": 0.0,
+                "estoque_item": 0,
+                "menor_preco": min(precos) if precos else None,
+                "media_preco": round(mean(precos), 4) if precos else None,
+                "maior_preco": max(precos) if precos else None,
+                "primeira_data": min(datas) if datas else "N/A",
+                "ultima_data": max(datas) if datas else "N/A",
+            }
+
+    token_index: dict[str, list[str]] = {}
+    for ean, stats in ean_stats.items():
+        tokens = _extract_tokens(stats.get("descricao", ""))
+        for token in tokens:
+            if token not in token_index:
+                token_index[token] = []
+            token_index[token].append(ean)
+
+    logger.info(f"Indice Banco construido: {len(ean_stats)} EANs, {len(token_index)} tokens")
+    return ean_stats, token_index
+
 
 # ─── Orquestrador Principal ──────────────────────────────────────────────────
 
@@ -405,6 +545,11 @@ def executar_analise_deterministico(
         ean_oferta = item.get("ean")
         tipo_preco = item.get("tipo_preco", "absoluto")
         desconto_pct = item.get("desconto_percentual")
+        multiplicador_embalagem = item.get("multiplicador_embalagem", 1.0)
+
+        # Normalize offer price to unit price if multiplier is present
+        if preco_oferta is not None and multiplicador_embalagem > 0:
+            preco_oferta = round(preco_oferta / multiplicador_embalagem, 4)
 
         # 1. MATCHING
         match = _match_item_no_arquivo(
@@ -445,8 +590,9 @@ def executar_analise_deterministico(
             elif tipo_preco == "percentual_desconto" and desconto_pct:
                 # Sem historico — transformar desconto em variacao direta
                 variacao = desconto_pct
-                demanda = match["demanda_mes"]
-                sugestao = calcular_sugestao_pedido(demanda, estoque=0)
+                demanda = match.get("demanda_mes") or float(match.get("demanda_mes", 0))
+                estoque_item = match.get("estoque_item", 0)
+                sugestao = calcular_sugestao_pedido(demanda, estoque=estoque_item)
                 classificacao = classificar_oferta(variacao)
 
                 recomendacao = gerar_recomendacao(
@@ -463,7 +609,7 @@ def executar_analise_deterministico(
                     desconto_percentual=desconto_pct,
                 )
 
-                estoque_equiv = sum(eq.get("qtd_entradas", 0) for eq in equivalentes)
+                estoque_equiv = sum(eq.get("estoque_item", 0) for eq in equivalentes)
 
                 itens_resultado.append({
                     "descricao_original": descricao,
@@ -472,7 +618,7 @@ def executar_analise_deterministico(
                     "descricao_produto": match["descricao_arquivo"],
                     "menor_historico": menor_hist,
                     "variacao_percentual": variacao,
-                    "estoque_item": 0,
+                    "estoque_item": estoque_item,
                     "demanda_mes": demanda,
                     "sugestao_pedido": sugestao,
                     "estoque_equivalentes": estoque_equiv,
@@ -488,8 +634,9 @@ def executar_analise_deterministico(
 
             # 4. CALCULOS DETERMINISTICOS (preco absoluto ou estimado)
             variacao = calcular_variacao_percentual(menor_hist, preco_efetivo)
-            demanda = match["demanda_mes"]
-            sugestao = calcular_sugestao_pedido(demanda, estoque=0)
+            demanda = match.get("demanda_mes") or float(match.get("demanda_mes", 0))
+            estoque_item = match.get("estoque_item", 0)
+            sugestao = calcular_sugestao_pedido(demanda, estoque=estoque_item)
             classificacao = classificar_oferta(variacao)
 
             # 5. RECOMENDACAO POR TEMPLATE
@@ -507,7 +654,7 @@ def executar_analise_deterministico(
                 desconto_percentual=desconto_pct,
             )
 
-            estoque_equiv = sum(eq.get("qtd_entradas", 0) for eq in equivalentes)
+            estoque_equiv = sum(eq.get("estoque_item", 0) for eq in equivalentes)
 
             itens_resultado.append({
                 "descricao_original": descricao,
@@ -516,7 +663,7 @@ def executar_analise_deterministico(
                 "descricao_produto": match["descricao_arquivo"],
                 "menor_historico": menor_hist,
                 "variacao_percentual": variacao,
-                "estoque_item": 0,
+                "estoque_item": estoque_item,
                 "demanda_mes": demanda,
                 "sugestao_pedido": sugestao,
                 "estoque_equivalentes": estoque_equiv,

@@ -96,31 +96,47 @@ Regras IMPORTANTES:
    Exemplo: "Olmesartana 20mg" preco=10.97 e "Olmesartana 40mg" preco=13.60
 4. **Bloco de categoria com desconto** (ex: "Rebaixa Linha Luftal Desconto 20%" seguido de uma lista de produtos): cada produto herda o desconto do bloco. tipo_preco="percentual_desconto".
 5. **Produtos sem preco e sem desconto**: incluir com tipo_preco="sem_preco" apenas se forem claramente um produto farmaceutico. Nao incluir frases de marketing.
-6. **Quantidade na embalagem**: se aparecer "/30" ou "C/60" ou "CX 10", ignorar — nao e preco.
+6. **multiplicador_embalagem** — REGRA CRÍTICA para cálculo correto:
+   O multiplicador indica QUANTAS UNIDADES VENDÁVEIS estão no pacote.
+   
+   SÓLIDOS (comprimidos, cápsulas):
+   - "C/36CPR" → multiplicador_embalagem = 36 (36 comprimidos)
+   - "CX 20 COMP" → multiplicador_embalagem = 20
+   - "30X10" em comprimidos → multiplicador_embalagem = 300 (30 blisters x 10 comp = 300 comp total)
+   - "C/1CPR" → multiplicador_embalagem = 1
+   
+   LÍQUIDOS (xaropes, soluções, gotas, sprays):
+   - "C/30ML", "100ML", "60ML" → multiplicador_embalagem = 1 (é UM frasco, ML é volume, não unidades!)
+   - "XAROPE 100ML" → multiplicador_embalagem = 1
+   - "GTS 30ML" → multiplicador_embalagem = 1
+   
+   TÓPICOS (cremes, pomadas, géis):
+   - "CREME 30G", "POM 20G" → multiplicador_embalagem = 1 (é UMA bisnaga, G é peso)
+   
+   SACHÊS/ENVELOPES (displays):
+   - "SACHÊ 30X2" → multiplicador_embalagem = 30 (30 sachês de 2, preço por sachê)
+   - "FRAÇÃO 2 ENV" → multiplicador_embalagem = 1 (1 sachê de 2 envelopes)
+   
+   SEM INDICAÇÃO → multiplicador_embalagem = 1
+   
 7. **Pedido minimo**: ignorar linhas de "Pedido minimo: X unidades".
-8. **Mensagens de marketing**: ignorar completamente (ex: "Aproveite as ofertas", "Promocao valida ate", "LIVE HOJE", textos de brindes).
+8. **Mensagens de marketing**: ignorar completamente.
 
 Formato de saida:
 ```json
-{
+{{
   "fornecedor": "nome do fornecedor/laboratorio ou null",
   "itens": [
-    {
+    {{
       "descricao": "nome completo do produto com dosagem e apresentacao",
       "preco": 24.17,
-      "ean": "codigo de barras 13 digitos ou null",
+      "ean": "codigo_de_barras",
       "tipo_preco": "absoluto",
-      "desconto_percentual": null
-    },
-    {
-      "descricao": "BENEGRIP",
-      "preco": null,
-      "ean": null,
-      "tipo_preco": "percentual_desconto",
-      "desconto_percentual": 30
-    }
+      "desconto_percentual": null,
+      "multiplicador_embalagem": 60
+    }}
   ]
-}
+}}
 ```
 
 Mensagem de oferta:
@@ -214,6 +230,20 @@ async def extrair_itens_llm(texto: str) -> tuple[str | None, list[dict[str, Any]
             except (ValueError, TypeError):
                 desconto_pct = None
 
+        multiplicador_embalagem = item.get("multiplicador_embalagem", 1)
+        try:
+            multiplicador_embalagem = float(multiplicador_embalagem)
+            if multiplicador_embalagem <= 0:
+                multiplicador_embalagem = 1
+        except (ValueError, TypeError):
+            multiplicador_embalagem = 1
+            
+        # Fallback para regex caso o LLM não identifique corretamente (ex: retorne 1 para C/36)
+        if multiplicador_embalagem == 1:
+            mult_regex = _extrair_multiplicador_regex(desc)
+            if mult_regex > 1:
+                multiplicador_embalagem = mult_regex
+
         # Validar combinacao tipo vs dados
         if tipo == "absoluto" and preco is None:
             tipo = "sem_preco"
@@ -226,6 +256,7 @@ async def extrair_itens_llm(texto: str) -> tuple[str | None, list[dict[str, Any]
             "ean": str(ean) if ean else None,
             "tipo_preco": tipo,
             "desconto_percentual": desconto_pct,
+            "multiplicador_embalagem": multiplicador_embalagem
         })
 
     logger.info(f"LLM extraiu {len(itens)} itens, fornecedor={fornecedor}")
@@ -255,6 +286,155 @@ def _parse_preco_br(texto: str) -> float | None:
         return float(m.group(1))
     return None
 
+def _classificar_forma_farmaceutica(desc: str) -> str:
+    """
+    Classifica a forma farmacêutica do produto pela descrição.
+    
+    Retorna:
+      'liquido'  - xaropes, soluções, gotas, suspensões (vendidos por frasco)
+      'topico'   - cremes, pomadas, géis (vendidos por bisnaga/tubo)
+      'solido'   - comprimidos, cápsulas, drágeas (vendidos por unidade contável)
+      'sache'    - sachês, envelopes, fração (vendidos por unidade de sachê)
+      'po'       - pós em frasco/pote (Sal de Fruta 100G = 1 frasco)
+      'unknown'  - não identificado
+    """
+    d = desc.upper()
+    
+    # Líquidos — preço por FRASCO, não por ML
+    liquido_markers = [
+        "XAROPE", "XPE ", "XPE.", "XAROPE",
+        "SOL NASAL", "SOL ORAL", "SOL ", "SOLUCAO", "SOLUÇÃO",
+        "SUSP ", "SUSPENSAO", "SUSPENSÃO",
+        "GTS ", "GOTAS", " GTS",
+        "SPRAY", "COLIRI", "COLIRIO",
+        "ELIXIR",
+    ]
+    for marker in liquido_markers:
+        if marker in d:
+            return "liquido"
+    
+    # Soluções genéricas: "SOL" seguido de forma indicando líquido
+    # Mas "SOL ADULTO" em NEOSORO é solução nasal
+    if re.search(r"\bSOL\b", d) and ("FR " in d or "ML" in d):
+        return "liquido"
+    
+    # Tópicos — preço por UNIDADE (bisnaga/tubo), não por grama
+    topico_markers = [
+        "CREME", "POMADA", "POM ", "GEL ",
+        "LOCAO", "LOÇÃO", "SHAMPOO",
+        " BG ", "BISNAGA",
+    ]
+    for marker in topico_markers:
+        if marker in d:
+            return "topico"
+    
+    # Sachês / Envelopes / Fração
+    sache_markers = [
+        "SACHE", "SACHÊ", "FRACAO", "FRAÇÃO",
+        " ENV ", "ENV.", "ENVELOPE",
+    ]
+    for marker in sache_markers:
+        if marker in d:
+            return "sache"
+    
+    # Sólidos contáveis — preço por comprimido/cápsula
+    solido_markers = [
+        "CPR", "COMP", "CAP", "DRG", "DRAGEA", "DRÁGEA",
+        "PASTILHA", "PAST ",
+    ]
+    for marker in solido_markers:
+        if marker in d:
+            return "solido"
+    
+    # Pó em frasco (ex: SAL DE FRUTA FR 100G)
+    if re.search(r"\bFR\s+\d+\s*G\b", d):
+        return "po"
+    
+    # Fallback: se tem "C/" ou "CX" seguido de número, provavelmente é contável
+    if re.search(r"\b[cC][/xX]\s*\d+\b", d):
+        return "solido"
+    
+    return "unknown"
+
+
+def extrair_multiplicador_inteligente(desc: str) -> float:
+    """
+    Extrai o multiplicador de embalagem DE FORMA INTELIGENTE por categoria de produto.
+    
+    Regras por categoria:
+      - LÍQUIDO (xarope, solução, gotas): mult = 1 (1 frasco, independente dos ML)
+      - TÓPICO (creme, pomada, gel): mult = 1 (1 bisnaga/tubo)
+      - PÓ em frasco (Sal de Fruta 100G frasco): mult = 1 (1 frasco)
+      - SÓLIDO (CPR, COMP, CAP): 
+          - C/36CPR → 36 (total de comprimidos)
+          - 30X10 → 300 (display de sólidos = total comprimidos)
+      - SACHÊ/ENVELOPE:
+          - Fração 2 ENV → mult = 1 (1 sachê de 2 envelopes)
+          - Display 30X2 sachê → mult = 30 (30 sachês, preço por sachê)
+          - C/150 25X6 sachê → mult = 25 (25 blisters de 6, preço por blister)
+    
+    A mesma função é usada tanto para oferta quanto para histórico,
+    garantindo que a comparação de preço unitário seja justa.
+    """
+    categoria = _classificar_forma_farmaceutica(desc)
+    
+    # LÍQUIDOS e TÓPICOS: sempre mult=1 (1 frasco/bisnaga)
+    if categoria in ("liquido", "topico", "po"):
+        return 1.0
+    
+    # SACHÊS / ENVELOPES
+    if categoria == "sache":
+        # Display NxM de sachês → mult = N (número de sachês no display)
+        m_display = re.search(r"\b(\d+)\s*[xX]\s*(\d+)\b", desc)
+        if m_display:
+            n = float(m_display.group(1))
+            return n if n > 0 else 1.0
+        # C/150 com NxM → usar N do NxM (ex: C/150CPR 25X6 → mult = 25)
+        # Sem NxM: sachê individual (FRACAO 2 ENV) → mult = 1
+        m_c = re.search(r"\b[cC]/?\s*(\d+)\b", desc)
+        if m_c:
+            return float(m_c.group(1)) if float(m_c.group(1)) > 0 else 1.0
+        return 1.0
+    
+    # SÓLIDOS (comprimidos, cápsulas, drágeas)
+    if categoria == "solido":
+        # 1. NxM para sólidos = total de comprimidos (30x10 = 300)
+        m_box = re.search(r"\b(\d+)\s*[xX]\s*(\d+)\b", desc)
+        if m_box:
+            mult = float(m_box.group(1)) * float(m_box.group(2))
+            return mult if mult > 0 else 1.0
+        
+        # 2. C/N onde N é quantidade de comprimidos
+        m_c = re.search(r"\b[cC]/?\s*(\d+)\b", desc)
+        if m_c:
+            mult = float(m_c.group(1))
+            return mult if mult > 0 else 1.0
+        
+        # 3. CX N ou N COMP sem prefixo C/
+        m_cx = re.search(r"\b(?:CX|cx)\s+(\d+)\b", desc, re.IGNORECASE)
+        if m_cx:
+            mult = float(m_cx.group(1))
+            return mult if mult > 0 else 1.0
+        
+        m_comp = re.search(r"\b(\d+)\s*(?:COMP|CPR|CAP|DRG)\b", desc, re.IGNORECASE)
+        if m_comp:
+            mult = float(m_comp.group(1))
+            return mult if mult > 0 else 1.0
+        
+        return 1.0
+    
+    # UNKNOWN — fallback conservador: tentar C/ se existir, senão 1
+    m_c = re.search(r"\b[cC]/?\s*(\d+)\s*(?:CPR|COMP|CAP|DRG)\b", desc, re.IGNORECASE)
+    if m_c:
+        mult = float(m_c.group(1))
+        return mult if mult > 0 else 1.0
+    
+    return 1.0
+
+
+def _extrair_multiplicador_regex(desc: str) -> float:
+    """Wrapper de compatibilidade → delega para extrair_multiplicador_inteligente."""
+    return extrair_multiplicador_inteligente(desc)
 
 def extrair_itens_regex(texto: str) -> list[dict[str, Any]]:
     """
@@ -328,6 +508,7 @@ def extrair_itens_regex(texto: str) -> list[dict[str, Any]]:
                     "ean": ean,
                     "tipo_preco": "absoluto",
                     "desconto_percentual": None,
+                    "multiplicador_embalagem": _extrair_multiplicador_regex(desc),
                 })
                 continue
 
@@ -350,6 +531,7 @@ def extrair_itens_regex(texto: str) -> list[dict[str, Any]]:
                     "ean": ean,
                     "tipo_preco": "absoluto",
                     "desconto_percentual": None,
+                    "multiplicador_embalagem": _extrair_multiplicador_regex(desc),
                 })
                 continue
 
@@ -364,6 +546,7 @@ def extrair_itens_regex(texto: str) -> list[dict[str, Any]]:
                     "ean": None,
                     "tipo_preco": "absoluto",
                     "desconto_percentual": None,
+                    "multiplicador_embalagem": _extrair_multiplicador_regex(current_parent),
                 })
                 continue
 
@@ -381,6 +564,7 @@ def extrair_itens_regex(texto: str) -> list[dict[str, Any]]:
                         "ean": None,
                         "tipo_preco": "percentual_desconto",
                         "desconto_percentual": pct,
+                        "multiplicador_embalagem": _extrair_multiplicador_regex(desc),
                     })
             except ValueError:
                 pass
@@ -396,6 +580,7 @@ def extrair_itens_regex(texto: str) -> list[dict[str, Any]]:
                     "ean": None,
                     "tipo_preco": "percentual_desconto",
                     "desconto_percentual": current_block_pct,
+                    "multiplicador_embalagem": _extrair_multiplicador_regex(desc),
                 })
                 continue
 

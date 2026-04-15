@@ -123,7 +123,7 @@ export default async function ItemDetalhePage({
     if (historico && historico.length > 0) {
       historicoPrecos = historico.map((h) => {
         const dateObj = new Date(h.data_entrada);
-        const label = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" }).format(dateObj);
+        const label = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit", timeZone: "America/Sao_Paulo" }).format(dateObj);
         return { data: label, preco: Number(h.preco_unitario) };
       });
     }
@@ -155,7 +155,7 @@ export default async function ItemDetalhePage({
 
   // ── Data de sincronização ──────────────────────────────────────
   const dataSinc = analise?.created_at
-    ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(analise.created_at))
+    ? new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date(analise.created_at))
     : "—";
 
   return (

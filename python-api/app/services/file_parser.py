@@ -297,14 +297,22 @@ def format_file_data_for_prompt(rows: list[dict[str, Any]], max_rows: int = 300,
         qtde_total = 0.0
 
         for e in entries:
+            if not descricao and e.get("descricao"):
+                descricao = str(e["descricao"]).strip()
+
+        # Normalizar para preco por "pílula/ml" extraindo o multiplicador
+        from app.services.offer_extractor import extrair_multiplicador_inteligente
+        mult = extrair_multiplicador_inteligente(descricao) if descricao else 1.0
+        if mult <= 0:
+            mult = 1.0
+
+        for e in entries:
             pu = _calcular_preco_unitario(e)
             if pu and pu > 0:
-                precos.append(pu)
+                precos.append(round(pu / mult, 4))
             d = e.get("data_entrada")
             if d:
                 datas.append(str(d))
-            if not descricao and e.get("descricao"):
-                descricao = str(e["descricao"]).strip()
             qtde_total += _parse_number(e.get("quantidade")) or 0
 
         menor = min(precos) if precos else None
