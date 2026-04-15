@@ -394,14 +394,78 @@ async def executar_analise_oferta(
     empresa_id: str,
     model_id: str | None = None,
     dados_arquivo: str | None = None,
+    rows_arquivo: list[dict] | None = None,
 ) -> tuple[AnaliseOfertaAgnoOutput, dict]:
     """
-    Executa a análise de oferta completa usando o agente Agno.
+    Executa a analise de oferta completa.
+
+    MODO ARQUIVO (rows_arquivo presente):
+      Fluxo deterministico de 3 fases - SEM LLM para calculos:
+      1. Extrai itens da oferta (regex -> LLM fallback)
+      2. Calcula tudo em Python (matching, variacao, classificacao, recomendacao)
+      3. Retorna resultado 100% preciso
+
+    MODO BANCO DE DADOS (sem rows_arquivo):
+      Fluxo com agente Agno + tools consultando Supabase.
 
     Returns:
         Tuple of (AnaliseOfertaAgnoOutput, metrics_dict).
         metrics_dict contains: tempo_processamento_ms, tokens_utilizados, custo_reais.
     """
+    # ─── Modo ARQUIVO DETERMINISTICO: fluxo de 3 fases SEM LLM ─────────────
+    if rows_arquivo is not None:
+        from app.services.offer_extractor import extrair_itens
+        from app.services.analysis_engine import (
+            construir_indice_arquivo,
+            executar_analise_deterministico,
+        )
+
+        logger.info(f"Modo ARQUIVO DETERMINISTICO: {len(rows_arquivo)} rows, texto={len(texto_bruto)} chars")
+        start_time = time.time()
+
+        # FASE 1: Extrair itens da oferta (regex com fallback LLM)
+        fornecedor_extraido, itens_extraidos = await extrair_itens(texto_bruto)
+        logger.info(f"Fase 1 (extracao): {len(itens_extraidos)} itens, fornecedor={fornecedor_extraido}")
+
+        if not itens_extraidos:
+            raise ValueError(
+                "Nao foi possivel extrair itens da oferta. "
+                "Verifique se o texto contem produtos com precos."
+            )
+
+        # FASE 2: Construir indice + calculos deterministicos
+        ean_stats, token_index = construir_indice_arquivo(rows_arquivo)
+        resultado = executar_analise_deterministico(
+            itens_extraidos=itens_extraidos,
+            fornecedor=fornecedor_extraido,
+            ean_stats=ean_stats,
+            token_index=token_index,
+            total_registros=len(rows_arquivo),
+        )
+
+        elapsed_ms = int((time.time() - start_time) * 1000)
+
+        # Metricas (zero tokens LLM se regex funcionou)
+        metrics_dict = {
+            "tempo_processamento_ms": elapsed_ms,
+            "tokens_utilizados": 0,
+            "custo_reais": 0.0,
+        }
+
+        logger.info(f"Analise deterministica concluida em {elapsed_ms}ms - ZERO custo LLM")
+
+        # Construir output Pydantic
+        from app.models.schemas import ItemAnaliseAgno
+        itens_agno = []
+        for item in resultado["itens"]:
+            itens_agno.append(ItemAnaliseAgno(**item))
+
+        return AnaliseOfertaAgnoOutput(
+            fornecedor=resultado["fornecedor"],
+            itens=itens_agno,
+        ), metrics_dict
+
+    # ─── Modo ARQUIVO LEGADO (compatibilidade com dados_arquivo string) ───
     # Montar prompt baseado na fonte de dados
     if dados_arquivo:
         # Modo ARQUIVO: agente SEM tools — todos os dados vêm do arquivo

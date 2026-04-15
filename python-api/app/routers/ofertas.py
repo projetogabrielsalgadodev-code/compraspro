@@ -75,12 +75,14 @@ async def _executar_e_persistir(
     fornecedor_informado: str | None,
     is_async: bool = False,
     dados_arquivo: str | None = None,
+    rows_arquivo: list | None = None,
 ) -> OfertaAnalyzeResponse:
-    """Executa a análise Agno e persiste no Supabase. Retorna o response completo."""
+    """Executa a analise e persiste no Supabase. Retorna o response completo."""
     resultado_agno, metrics = await executar_analise_oferta(
         texto_bruto=texto_bruto,
         empresa_id=empresa_id,
         dados_arquivo=dados_arquivo,
+        rows_arquivo=rows_arquivo,
     )
 
     itens_response = _build_itens_response(resultado_agno)
@@ -165,11 +167,12 @@ async def _background_analise(
     texto_bruto: str,
     fornecedor_informado: str | None,
     dados_arquivo: str | None = None,
+    rows_arquivo: list | None = None,
 ):
     """Task executada em background. Atualiza o status no Supabase ao terminar."""
     client = get_supabase_client()
     try:
-        logger.info(f"[BG] Iniciando análise {analise_id}")
+        logger.info(f"[BG] Iniciando analise {analise_id}")
         response_obj = await _executar_e_persistir(
             analise_id=analise_id,
             empresa_id=empresa_id,
@@ -178,6 +181,7 @@ async def _background_analise(
             fornecedor_informado=fornecedor_informado,
             is_async=True,
             dados_arquivo=dados_arquivo,
+            rows_arquivo=rows_arquivo,
         )
 
         # Atualizar o registro com o resultado completo e status=concluida
@@ -304,24 +308,24 @@ async def analisar_oferta_async_file(
         )
 
     # Parsear arquivo se fonte_dados=arquivo
+    rows_arquivo: list | None = None
     dados_arquivo_str: str | None = None
     if fonte_dados == "arquivo":
         if not arquivo:
             raise HTTPException(
                 status_code=400,
-                detail="Arquivo é obrigatório quando fonte_dados='arquivo'.",
+                detail="Arquivo obrigatorio quando fonte_dados='arquivo'.",
             )
         try:
             file_bytes = await arquivo.read()
             filename = arquivo.filename or "upload.xlsx"
-            rows = parse_uploaded_file(file_bytes, filename)
-            if not rows:
+            rows_arquivo = parse_uploaded_file(file_bytes, filename)
+            if not rows_arquivo:
                 raise HTTPException(
                     status_code=400,
                     detail="Nenhum dado encontrado no arquivo enviado.",
                 )
-            dados_arquivo_str = format_file_data_for_prompt(rows, texto_oferta=texto_bruto)
-            logger.info(f"Arquivo {filename} parseado: {len(rows)} registros → {len(dados_arquivo_str)} chars para prompt")
+            logger.info(f"Arquivo {filename} parseado: {len(rows_arquivo)} registros para analise deterministica")
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
@@ -358,6 +362,7 @@ async def analisar_oferta_async_file(
         texto_bruto=texto_bruto,
         fornecedor_informado=fornecedor_informado,
         dados_arquivo=dados_arquivo_str,
+        rows_arquivo=rows_arquivo,
     )
 
     return {
