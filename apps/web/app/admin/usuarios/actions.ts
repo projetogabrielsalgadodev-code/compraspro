@@ -271,3 +271,45 @@ export async function deleteUser(userId: string) {
    revalidatePath('/admin/usuarios')
    return { success: 'Usuário removido com sucesso!' }
 }
+
+export type UserUsageStats = {
+  usuario_id: string
+  total_analises: number
+  total_tokens: number
+  total_custo: number
+}
+
+export async function getUsersUsageStats(): Promise<UserUsageStats[]> {
+  const adminCheck = await requireAdmin()
+  if ('error' in adminCheck) return []
+
+  // Use supabaseAdmin via RPC or direct query to aggregate usage
+  const { data, error } = await supabaseAdmin
+    .from('analises_oferta')
+    .select('usuario_id, tokens_utilizados, custo_reais')
+    .not('usuario_id', 'is', null)
+
+  if (error) {
+    console.error('Erro ao buscar stats de uso:', error)
+    return []
+  }
+
+  // Aggregate in JS since Supabase JS SDK doesn't support GROUP BY natively
+  const statsMap = new Map<string, UserUsageStats>()
+
+  for (const row of data || []) {
+    if (!row.usuario_id) continue
+    const existing = statsMap.get(row.usuario_id) || {
+      usuario_id: row.usuario_id,
+      total_analises: 0,
+      total_tokens: 0,
+      total_custo: 0,
+    }
+    existing.total_analises += 1
+    existing.total_tokens += Number(row.tokens_utilizados) || 0
+    existing.total_custo += Number(row.custo_reais) || 0
+    statsMap.set(row.usuario_id, existing)
+  }
+
+  return Array.from(statsMap.values())
+}

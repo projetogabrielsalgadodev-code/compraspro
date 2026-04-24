@@ -43,6 +43,11 @@ _COLUMN_ALIASES: dict[str, str] = {
     "valor unitario": "preco_unitario",
     "valor unitário": "preco_unitario",
     "unit_price": "preco_unitario",
+    # Valor unitário final/bruto → preco_unitario (planilhas com colunas separadas)
+    "valor_unitario_final": "preco_unitario",
+    "valor unitario final": "preco_unitario",
+    "valor_unitario_bruto": "valor_unitario_bruto",
+    "valor unitario bruto": "valor_unitario_bruto",
     # Quantidade
     "quantidade": "quantidade",
     "qtde": "quantidade",
@@ -62,6 +67,17 @@ _COLUMN_ALIASES: dict[str, str] = {
     "vlr. total": "valor_total",
     "total": "valor_total",
     "valor_total_item": "valor_total",
+    "valor_total_bruto": "valor_total",
+    "valor total bruto": "valor_total",
+    "valor_total_liquido": "valor_total_liquido",
+    "valor total liquido": "valor_total_liquido",
+    # Desconto / Frete
+    "valor_de_desconto": "valor_desconto",
+    "valor de desconto": "valor_desconto",
+    "desconto": "valor_desconto",
+    "valor_do_frete": "valor_frete",
+    "valor do frete": "valor_frete",
+    "frete": "valor_frete",
     # Data
     "data": "data_entrada",
     "data_entrada": "data_entrada",
@@ -239,21 +255,200 @@ def parse_uploaded_file(file_bytes: bytes, filename: str) -> list[dict[str, Any]
     return rows
 
 
-def _calcular_preco_unitario(row: dict) -> float | None:
-    """Calcula preço unitário a partir de valor_total / quantidade."""
-    valor_total = _parse_number(row.get("valor_total"))
-    qtde = _parse_number(row.get("quantidade"))
+# ─── Aliases para colunas de arquivos de OFERTA ──────────────────────────────
 
-    # Se já tem preço unitário, usar esse
+_OFFER_PRICE_ALIASES = {
+    "vda", "preco", "preço", "preco_unitario", "preço unitário", "preco unitario",
+    "vlr unitario", "vlr. unitário", "valor unitario", "valor unitário",
+    "unit_price", "price", "valor_total", "valor total", "vlr total",
+    "vlr. total", "total", "valor_total_item",
+}
+
+_OFFER_DESC_ALIASES = {
+    "descricao", "descrição", "descricao_do_produto", "descrição do produto",
+    "descricao do produto", "produto", "nome", "nome_do_produto",
+    "nome do produto", "item",
+}
+
+_OFFER_EAN_ALIASES = {
+    "ean", "codigo_barras", "código de barras", "codigo de barras",
+    "cod barras", "cod. barras", "gtin", "barcode", "cod_barras",
+}
+
+
+def parse_offer_file(file_bytes: bytes, filename: str) -> tuple[list[dict[str, Any]], str | None]:
+    """
+    Parseia um arquivo de OFERTA (XLSX/CSV) e retorna lista de itens estruturados
+    no formato esperado pelo analysis engine, MAIS o fornecedor detectado.
+
+    Returns:
+        (items, fornecedor) onde:
+        - items: lista de dicts com descricao, preco, ean, tipo_preco, etc.
+        - fornecedor: nome do fornecedor extraído do arquivo, ou None
+
+    Detecta automaticamente colunas de preço, descrição e EAN usando aliases.
+    """
+    from app.services.offer_extractor import extrair_multiplicador_inteligente
+    import re as _re_offer
+
+    # Parse the file generically first
+    rows = parse_uploaded_file(file_bytes, filename)
+    if not rows:
+        return [], None
+
+    # Detect which canonical columns exist
+    sample_keys = set(rows[0].keys()) if rows else set()
+    logger.info(f"Offer file columns: {sample_keys}")
+
+    # ── Extract fornecedor from data or filename ──────────────────────────
+    fornecedor_detectado: str | None = None
+
+    # 1. Try 'fornecedor' column if it exists
+    fornecedor_col = None
+    for key in sample_keys:
+        if key == "fornecedor" or _normalize_column_name(key) == "fornecedor":
+            fornecedor_col = key
+            break
+
+    if fornecedor_col:
+        # Get the most common non-empty value
+        from collections import Counter
+        forn_values = [
+            str(r.get(fornecedor_col, "")).strip()
+            for r in rows
+            if r.get(fornecedor_col) and str(r.get(fornecedor_col, "")).strip()
+        ]
+        if forn_values:
+            fornecedor_detectado = Counter(forn_values).most_common(1)[0][0]
+
+    # 2. Fallback: try to extract from filename (e.g., "TABELA OL- MEDQUIMICA.xlsx")
+    if not fornecedor_detectado and filename:
+        # Remove extension and common prefixes
+        name_clean = _re_offer.sub(r"\.(xlsx|xls|csv)$", "", filename, flags=_re_offer.IGNORECASE)
+        name_clean = _re_offer.sub(r"^(tabela|oferta|promo|lista)\s*[-_]?\s*", "", name_clean, flags=_re_offer.IGNORECASE).strip()
+        # Remove prefixes like "OL-" (Ofertas do Laboratório)
+        name_clean = _re_offer.sub(r"^[A-Z]{1,3}\s*[-_]\s*", "", name_clean).strip()
+        if name_clean and len(name_clean) >= 3:
+            fornecedor_detectado = name_clean.upper()
+
+    if fornecedor_detectado:
+        logger.info(f"Fornecedor detectado do arquivo de oferta: {fornecedor_detectado}")
+
+    # ── Find columns ──────────────────────────────────────────────────────
+
+    # Find description column
+    desc_col = None
+    for key in sample_keys:
+        if key in _OFFER_DESC_ALIASES or _normalize_column_name(key) == "descricao":
+            desc_col = key
+            break
+    if not desc_col and "descricao" in sample_keys:
+        desc_col = "descricao"
+
+    # Find price column — prefer 'vda' (selling price), then 'preco_unitario', then 'valor_total'
+    price_col = None
+    price_priority = ["vda", "preco_unitario", "valor_unitario_final", "valor_total", "total"]
+    for candidate in price_priority:
+        if candidate in sample_keys:
+            price_col = candidate
+            break
+    if not price_col:
+        # Try raw key matching
+        for key in sample_keys:
+            norm = key.lower().strip()
+            if norm in _OFFER_PRICE_ALIASES:
+                price_col = key
+                break
+
+    # Find EAN column
+    ean_col = None
+    for key in sample_keys:
+        if key in _OFFER_EAN_ALIASES or key == "ean":
+            ean_col = key
+            break
+
+    logger.info(f"Offer columns detected: desc={desc_col}, price={price_col}, ean={ean_col}")
+
+    if not desc_col:
+        logger.warning("Could not find a description column in the offer file")
+        return [], fornecedor_detectado
+
+    # Extract items
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        desc = str(row.get(desc_col, "")).strip()
+        if not desc or len(desc) < 3:
+            continue
+
+        # Parse price
+        preco = None
+        if price_col:
+            raw_price = row.get(price_col)
+            preco = _parse_number(raw_price)
+            if preco is not None and preco <= 0:
+                preco = None
+
+        # Parse EAN
+        ean = None
+        if ean_col:
+            raw_ean = row.get(ean_col)
+            if raw_ean is not None:
+                ean_str = str(raw_ean).strip()
+                # Remove .0 from float-parsed EANs
+                if ean_str.endswith(".0"):
+                    ean_str = ean_str[:-2]
+                # Validate: EAN should be numeric and 8-14 digits
+                if ean_str.isdigit() and 8 <= len(ean_str) <= 14:
+                    ean = ean_str
+
+        # Determine multiplicador
+        mult = extrair_multiplicador_inteligente(desc)
+
+        items.append({
+            "descricao": desc,
+            "preco": preco,
+            "ean": ean,
+            "tipo_preco": "absoluto" if preco else "sem_preco",
+            "desconto_percentual": None,
+            "multiplicador_embalagem": mult,
+        })
+
+    logger.info(f"Offer file parsed: {len(items)} items extracted (desc={desc_col}, price={price_col}, ean={ean_col})")
+    return items, fornecedor_detectado
+
+
+def _calcular_preco_unitario(row: dict) -> float | None:
+    """
+    Calcula preço unitário priorizando campos mais específicos:
+    1. preco_unitario (valor_unitario_final mapeado aqui via aliases)
+    2. valor_unitario_bruto (se final não existir)
+    3. valor_total_liquido / quantidade
+    4. valor_total / quantidade
+    5. valor_total sozinho (qtde=1 implícita)
+    """
+    # 1. Preço unitário direto (inclui valor_unitario_final via alias)
     pu = _parse_number(row.get("preco_unitario"))
     if pu and pu > 0:
         return round(pu, 4)
 
-    # Calcular a partir de valor_total / quantidade
+    # 2. Valor unitário bruto (antes de descontos)
+    pu_bruto = _parse_number(row.get("valor_unitario_bruto"))
+    if pu_bruto and pu_bruto > 0:
+        return round(pu_bruto, 4)
+
+    qtde = _parse_number(row.get("quantidade"))
+
+    # 3. Total líquido / quantidade (mais preciso que total bruto)
+    vt_liq = _parse_number(row.get("valor_total_liquido"))
+    if vt_liq and qtde and qtde > 0:
+        return round(vt_liq / qtde, 4)
+
+    # 4. Valor total / quantidade
+    valor_total = _parse_number(row.get("valor_total"))
     if valor_total and qtde and qtde > 0:
         return round(valor_total / qtde, 4)
 
-    # Fallback: valor_total é o preço unitário (qtde=1 implícita)
+    # 5. Fallback: valor_total é o preço unitário (qtde=1 implícita)
     if valor_total and valor_total > 0:
         return round(valor_total, 4)
 

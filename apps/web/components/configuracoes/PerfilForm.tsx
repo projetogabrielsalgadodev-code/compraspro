@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState, useTransition } from "react"
-import { Camera, Loader2, Save, User } from "lucide-react"
+import { Camera, Loader2, Save, User, BarChart3, Cpu, Coins } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -17,7 +17,13 @@ interface PerfilData {
   papel: string
 }
 
-export function PerfilForm({ perfil }: { perfil: PerfilData }) {
+interface UsageStats {
+  total_analises: number
+  total_tokens: number
+  total_custo: number
+}
+
+export function PerfilForm({ perfil, usageStats }: { perfil: PerfilData; usageStats?: UsageStats }) {
   const [form, setForm] = useState(perfil)
   const [mensagem, setMensagem] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
@@ -125,6 +131,35 @@ export function PerfilForm({ perfil }: { perfil: PerfilData }) {
             </span>
           </div>
         </div>
+
+        {/* Usage metrics */}
+        {usageStats && usageStats.total_analises > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="ds-subpanel rounded-2xl px-4 py-3 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <BarChart3 className="h-3.5 w-3.5 text-primariaapp" />
+                <p className="text-[10px] uppercase tracking-wider text-secondary">Análises</p>
+              </div>
+              <p className="text-lg font-bold text-texto">{usageStats.total_analises}</p>
+            </div>
+            <div className="ds-subpanel rounded-2xl px-4 py-3 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <Cpu className="h-3.5 w-3.5 text-primariaapp" />
+                <p className="text-[10px] uppercase tracking-wider text-secondary">Tokens</p>
+              </div>
+              <p className="text-lg font-bold text-texto">{usageStats.total_tokens.toLocaleString('pt-BR')}</p>
+            </div>
+            <div className="ds-subpanel rounded-2xl px-4 py-3 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <Coins className="h-3.5 w-3.5 text-primariaapp" />
+                <p className="text-[10px] uppercase tracking-wider text-secondary">Custo Total</p>
+              </div>
+              <p className="text-lg font-bold text-primariaapp">
+                {usageStats.total_custo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Nome completo *">

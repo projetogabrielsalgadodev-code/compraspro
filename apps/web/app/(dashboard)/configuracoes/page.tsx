@@ -23,6 +23,7 @@ export default async function ConfiguracoesPage() {
 
   let empresa = null;
   let perfil = null;
+  let usageStats = { total_analises: 0, total_tokens: 0, total_custo: 0 };
 
   if (user) {
     // Buscar perfil com empresa vinculada
@@ -56,11 +57,29 @@ export default async function ConfiguracoesPage() {
         };
       }
     }
+
+    // Buscar stats de uso do próprio usuário
+    const { data: analises } = await supabase
+      .from("analises_oferta")
+      .select("tokens_utilizados, custo_reais")
+      .eq("usuario_id", user.id);
+
+    if (analises && analises.length > 0) {
+      usageStats = analises.reduce(
+        (acc, row) => ({
+          total_analises: acc.total_analises + 1,
+          total_tokens: acc.total_tokens + (Number(row.tokens_utilizados) || 0),
+          total_custo: acc.total_custo + (Number(row.custo_reais) || 0),
+        }),
+        { total_analises: 0, total_tokens: 0, total_custo: 0 }
+      );
+    }
   }
 
   return (
     <DashboardPage titulo="Configurações" subtitulo="Ajuste regras operacionais, dados da empresa e seu perfil." eyebrow="Governança">
-      <ConfiguracoesTabs empresa={empresa} perfil={perfil} />
+      <ConfiguracoesTabs empresa={empresa} perfil={perfil} usageStats={usageStats} />
     </DashboardPage>
   );
 }
+

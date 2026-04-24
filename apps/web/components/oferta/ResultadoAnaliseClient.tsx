@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   BarChart3, ClipboardList, ShieldAlert, Trophy, CheckSquare, Loader2,
   AlertTriangle, LayoutDashboard, Clock, Coins, Cpu, Search, ArrowLeft,
-  ArrowRight,
+  ArrowRight, FileText,
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { OfferCard } from "@/components/oferta/OfferCard";
@@ -17,7 +17,7 @@ import { formatarMoeda, formatarPercentual } from "@/lib/utils";
 import type { ClassificacaoOferta, ItemOferta, RespostaAnaliseOferta } from "@/types";
 import { updateAnaliseStatus } from "@/app/(dashboard)/resultado/actions";
 
-type FiltroResultado = "todos" | "comprar" | "nao-comprar" | "revisar";
+type FiltroResultado = "todos" | "comprar" | "nao-comprar" | "revisar" | "ouro" | "prata" | "atencao" | "descartavel";
 
 const ITEMS_POR_PAGINA_TABELA = 10;
 const ITEMS_POR_PAGINA_CARDS = 5;
@@ -197,6 +197,11 @@ export function ResultadoAnaliseClient({ analiseId, dadosIniciais }: { analiseId
   /* Filtro por classificação */
   const itensFiltradosPorTipo = useMemo(() => {
     if (filtroAtivo === "todos") return itens;
+    // Filtros por classificação direta
+    if (["ouro", "prata", "atencao", "descartavel"].includes(filtroAtivo)) {
+      return itens.filter((item) => item.classificacao === filtroAtivo);
+    }
+    // Filtros por ação (comprar, nao-comprar, revisar)
     return itens.filter((item) => classificacaoParaFiltro(item.classificacao) === filtroAtivo);
   }, [itens, filtroAtivo]);
 
@@ -289,6 +294,13 @@ export function ResultadoAnaliseClient({ analiseId, dadosIniciais }: { analiseId
     { key: "revisar", label: "Revisar", count: itens.filter((i) => classificacaoParaFiltro(i.classificacao) === "revisar").length },
   ];
 
+  const filtrosClassificacao: { key: FiltroResultado; label: string; count: number; color: string }[] = [
+    { key: "ouro", label: "🥇 Ouro", count: itens.filter((i) => i.classificacao === "ouro").length, color: "text-ouro" },
+    { key: "prata", label: "🥈 Prata", count: itens.filter((i) => i.classificacao === "prata").length, color: "text-prata" },
+    { key: "atencao", label: "⚠️ Atenção", count: itens.filter((i) => i.classificacao === "atencao").length, color: "text-atencao" },
+    { key: "descartavel", label: "❌ Descartável", count: itens.filter((i) => i.classificacao === "descartavel").length, color: "text-descartavel" },
+  ];
+
   return (
     <div className="space-y-6">
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -363,6 +375,15 @@ export function ResultadoAnaliseClient({ analiseId, dadosIniciais }: { analiseId
         </div>
 
         <Button
+          onClick={() => router.push(`/resultado/${analiseId}/inputs`)}
+          variant="secondary"
+          className="gap-2 rounded-[8px]"
+        >
+          <FileText className="h-4 w-4" />
+          Ver Inputs da Análise
+        </Button>
+
+        <Button
           onClick={() => router.push(`/dashboard/${analiseId}`)}
           className="gap-2 rounded-[8px] border-none bg-primaria px-6 py-3 font-semibold text-white shadow-primario transition-all hover:shadow-lg hover:brightness-110"
         >
@@ -396,7 +417,14 @@ export function ResultadoAnaliseClient({ analiseId, dadosIniciais }: { analiseId
                 <SelectValue placeholder="Filtrar por tipo" />
               </SelectTrigger>
               <SelectContent className="bg-inputapp">
+                <div className="px-2 py-1.5 text-xs font-semibold text-secondary">Por Ação</div>
                 {filtros.map((f) => (
+                  <SelectItem key={f.key} value={f.key}>
+                    {f.label} ({f.count})
+                  </SelectItem>
+                ))}
+                <div className="px-2 py-1.5 text-xs font-semibold text-secondary border-t border-borderapp mt-1 pt-2">Por Classificação</div>
+                {filtrosClassificacao.map((f) => (
                   <SelectItem key={f.key} value={f.key}>
                     {f.label} ({f.count})
                   </SelectItem>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Boxes, PackageSearch, Plus, ArrowLeft, ArrowRight, Pencil } from "lucide-react";
+import { Boxes, PackageSearch, Plus, ArrowLeft, ArrowRight, Pencil, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ProdutoModal } from "./ProdutoModal";
+import { CsvImportModal } from "./CsvImportModal";
 
 export interface ProdutoListado {
   id: string;
@@ -41,6 +42,7 @@ export function ProdutosListaClient({
 
   const [busca, setBusca] = useState(searchParams.get("query") || "");
   const [modalOpen, setModalOpen] = useState(false);
+  const [csvModalOpen, setCsvModalOpen] = useState(false);
   const [produtoEditando, setProdutoEditando] = useState<ProdutoListado | null>(null);
   const [pageInput, setPageInput] = useState(currentPage.toString());
 
@@ -109,10 +111,16 @@ export function ProdutosListaClient({
             Busque produtos, veja estoques e edite informações cadastradas.
           </p>
         </div>
-        <Button onClick={handleAddProduto}>
-          <Plus className="mr-2 h-4 w-4" />
-          Adicionar Produto
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setCsvModalOpen(true)} className="gap-2">
+            <Upload className="h-4 w-4" />
+            Importar CSV
+          </Button>
+          <Button onClick={handleAddProduto}>
+            <Plus className="mr-2 h-4 w-4" />
+            Adicionar Produto
+          </Button>
+        </div>
       </div>
 
       <Card className="mb-6">
@@ -248,6 +256,14 @@ export function ProdutosListaClient({
         open={modalOpen}
         onOpenChange={setModalOpen}
         produtoToEdit={produtoEditando}
+      />
+
+      <CsvImportModal
+        open={csvModalOpen}
+        onOpenChange={setCsvModalOpen}
+        onImportComplete={() => {
+          router.refresh();
+        }}
       />
     </>
   );

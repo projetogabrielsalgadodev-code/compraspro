@@ -21,6 +21,7 @@ import {
   Mail, ShieldAlert, Building2, UserPlus, Edit
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import type { UserUsageStats } from "../actions"
 
 type UserProfile = {
   id: string
@@ -41,9 +42,10 @@ interface UserManagerProps {
   initialUsers: UserProfile[]
   empresas: EmpresaOption[]
   empresaIdFilter?: string
+  usageStats?: UserUsageStats[]
 }
 
-export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserManagerProps) {
+export function UserManager({ initialUsers, empresas, empresaIdFilter, usageStats = [] }: UserManagerProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [editingData, setEditingData] = useState<UserProfile | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -146,7 +148,7 @@ export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserMan
       </div>
 
       {/* Stats strip */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="surface-card rounded-2xl px-4 py-3 soft-stroke">
           <p className="ds-eyebrow">Total</p>
           <p className="mt-1 text-2xl font-bold text-texto">{initialUsers.length}</p>
@@ -158,6 +160,16 @@ export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserMan
         <div className="surface-card rounded-2xl px-4 py-3 soft-stroke">
           <p className="ds-eyebrow">Funcionários</p>
           <p className="mt-1 text-2xl font-bold text-texto">{initialUsers.filter(u => u.papel !== 'admin').length}</p>
+        </div>
+        <div className="surface-card rounded-2xl px-4 py-3 soft-stroke">
+          <p className="ds-eyebrow">Total Análises</p>
+          <p className="mt-1 text-2xl font-bold text-primariaapp">{usageStats.reduce((acc, s) => acc + s.total_analises, 0)}</p>
+        </div>
+        <div className="surface-card rounded-2xl px-4 py-3 soft-stroke">
+          <p className="ds-eyebrow">Custo Total</p>
+          <p className="mt-1 text-2xl font-bold text-primariaapp">
+            {usageStats.reduce((acc, s) => acc + s.total_custo, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </p>
         </div>
       </div>
 
@@ -204,6 +216,30 @@ export function UserManager({ initialUsers, empresas, empresaIdFilter }: UserMan
                 </Badge>
               )}
             </div>
+
+            {/* Usage metrics */}
+            {(() => {
+              const stats = usageStats.find(s => s.usuario_id === user.id)
+              if (!stats) return null
+              return (
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="bg-[var(--surface-highlight)] rounded-xl px-3 py-2 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-secondary">Análises</p>
+                    <p className="text-sm font-bold text-texto">{stats.total_analises}</p>
+                  </div>
+                  <div className="bg-[var(--surface-highlight)] rounded-xl px-3 py-2 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-secondary">Tokens</p>
+                    <p className="text-sm font-bold text-texto">{stats.total_tokens.toLocaleString('pt-BR')}</p>
+                  </div>
+                  <div className="bg-[var(--surface-highlight)] rounded-xl px-3 py-2 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-secondary">Custo</p>
+                    <p className="text-sm font-bold text-primariaapp">
+                      {stats.total_custo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </p>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-3 border-t border-app">

@@ -25,39 +25,22 @@ export async function POST(request: Request) {
 
     // Ler o FormData do request
     const formData = await request.formData();
-    const textoBruto = formData.get("texto_bruto") as string;
-    const fonteDados = formData.get("fonte_dados") as string || "banco";
-    const fornecedorInformado = formData.get("fornecedor_informado") as string | null;
     const arquivo = formData.get("arquivo") as File | null;
-    const arquivoOferta = formData.get("arquivo_oferta") as File | null;
 
-    // Validate: need at least texto_bruto or arquivo_oferta
-    if (!textoBruto?.trim() && !arquivoOferta) {
-      return NextResponse.json({ error: "texto_bruto ou arquivo_oferta é obrigatório." }, { status: 400 });
+    if (!arquivo) {
+      return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
     }
 
     // Montar FormData para o FastAPI
     const fastapiFormData = new FormData();
-    fastapiFormData.append("texto_bruto", textoBruto || "");
-    fastapiFormData.append("fonte_dados", fonteDados);
-    fastapiFormData.append("usuario_id", user.id);
-    if (fornecedorInformado) {
-      fastapiFormData.append("fornecedor_informado", fornecedorInformado);
-    }
-    if (arquivo) {
-      fastapiFormData.append("arquivo", arquivo, arquivo.name);
-    }
-    if (arquivoOferta) {
-      fastapiFormData.append("arquivo_oferta", arquivoOferta, arquivoOferta.name);
-    }
+    fastapiFormData.append("arquivo", arquivo, arquivo.name);
 
-    const response = await fetch(`${FASTAPI_URL}/api/ofertas/analisar-async-file`, {
+    const response = await fetch(`${FASTAPI_URL}/api/produtos/importar-csv`, {
       method: "POST",
       headers: {
         "X-Internal-Key": INTERNAL_KEY,
         "X-Empresa-Id": perfil.empresa_id,
         "X-User-Id": user.id,
-        // NÃO setar Content-Type — o fetch API seta automaticamente com boundary
       },
       body: fastapiFormData,
       cache: "no-store",
@@ -65,9 +48,9 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`[FastAPI] analisar-async-file ${response.status}: ${errorBody}`);
+      console.error(`[FastAPI] importar-csv ${response.status}: ${errorBody}`);
       return NextResponse.json(
-        { error: "Falha ao iniciar análise.", detail: errorBody },
+        { error: "Falha ao importar CSV.", detail: errorBody },
         { status: response.status }
       );
     }
@@ -76,9 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json(data, { status: 200 });
   } catch (err) {
     const errMessage = err instanceof Error ? err.message : String(err);
-    console.error("[analisar-async-file] Erro:", errMessage);
-    console.error("[analisar-async-file] FASTAPI_URL:", FASTAPI_URL);
+    console.error("[importar-csv] Erro:", errMessage);
     return NextResponse.json({ error: "Erro interno ao conectar com o backend.", detail: errMessage }, { status: 500 });
   }
 }
-

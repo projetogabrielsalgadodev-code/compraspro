@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Database,
   FileSpreadsheet,
+  FileUp,
   Loader2,
   Sparkles,
   XCircle,
@@ -174,6 +175,7 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
   const [textoBruto, setTextoBruto] = useState("");
   const [fornecedor, setFornecedor] = useState("");
   const [arquivoBanco, setArquivoBanco] = useState<File | null>(null);
+  const [arquivoOferta, setArquivoOferta] = useState<File | null>(null);
   const [bancoPersistido, setBancoPersistido] = useState(false);
   const [fonteDados, setFonteDados] = useState<FonteDados>("banco");
   const [isLoading, setIsLoading] = useState(false);
@@ -209,24 +211,29 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
         setBancoPersistido(true);
       }
 
-      if (fonteDados === "arquivo") {
-        // ─── Modo ARQUIVO: enviar via FormData (multipart) ───────────────
-        if (!arquivoBanco) {
-          throw new Error("Selecione um arquivo para análise no modo 'Usar dados do arquivo'.");
-        }
+      let analiseId: string | null = null;
 
+      // Always use file endpoint when any file is present (offer file or history file)
+      const hasFiles = !!arquivoOferta || fonteDados === "arquivo";
+
+      if (hasFiles) {
+        // ─── Modo com arquivo (oferta e/ou histórico) ──────────────────
         const formData = new FormData();
-        formData.append("texto_bruto", textoBruto);
-        formData.append("fonte_dados", "arquivo");
-        formData.append("arquivo", arquivoBanco, arquivoBanco.name);
+        formData.append("texto_bruto", textoBruto || "");
+        formData.append("fonte_dados", fonteDados);
         if (fornecedor.trim()) {
           formData.append("fornecedor_informado", fornecedor.trim());
+        }
+        if (arquivoBanco && fonteDados === "arquivo") {
+          formData.append("arquivo", arquivoBanco, arquivoBanco.name);
+        }
+        if (arquivoOferta) {
+          formData.append("arquivo_oferta", arquivoOferta, arquivoOferta.name);
         }
 
         const response = await fetch("/api/ofertas/analisar-async-file", {
           method: "POST",
           body: formData,
-          // NÃO setar Content-Type — o browser seta automaticamente com boundary
         });
 
         if (!response.ok) {
@@ -234,8 +241,15 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
           const detail = (body as any)?.detail ? ` (${(body as any).detail})` : '';
           throw new Error(((body as { error?: string })?.error ?? "Não foi possível iniciar a análise.") + detail);
         }
+
+        const result = await response.json();
+        analiseId = result.analise_id;
       } else {
-        // ─── Modo BANCO DE DADOS: enviar via JSON (fluxo original) ───────
+        // ─── Modo BANCO DE DADOS sem arquivo: enviar via JSON ───────
+        if (!textoBruto.trim()) {
+          throw new Error("Cole o texto da oferta ou envie um arquivo de oferta.");
+        }
+
         const payload: Record<string, unknown> = {
           texto_bruto: textoBruto,
           empresa_id: EMPRESA_ID_PADRAO,
@@ -255,15 +269,24 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
           const detail = (body as any)?.detail ? ` (${(body as any).detail})` : '';
           throw new Error(((body as { error?: string })?.error ?? "Não foi possível iniciar a análise.") + detail);
         }
+
+        const result = await response.json();
+        analiseId = result.analise_id;
       }
 
-      // Sucesso — limpar formulário e mostrar modal
+      // Sucesso — limpar formulário e redirecionar para processamento com polling
       setTextoBruto("");
       setFornecedor("");
-      setModal("sucesso");
+      setArquivoOferta(null);
 
-      // Redirecionar automaticamente após 5s se o usuário não fechar
-      redirectTimerRef.current = setTimeout(irParaHistorico, 5000);
+      if (analiseId) {
+        // Redirecionar imediatamente para a página de processamento com polling
+        router.push(`/processando?id=${analiseId}`);
+      } else {
+        // Fallback caso não retorne ID
+        setModal("sucesso");
+        redirectTimerRef.current = setTimeout(irParaHistorico, 5000);
+      }
     } catch (error) {
       setErroMsg(error instanceof Error ? error.message : "Falha inesperada. Tente novamente.");
       setModal("erro");
@@ -272,9 +295,14 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
     }
   };
 
-  const podeSubmeter = fonteDados === "arquivo"
-    ? textoBruto.trim() && arquivoBanco
-    : textoBruto.trim();
+  const podeSubmeter = (() => {
+    const hasText = !!textoBruto.trim();
+    const hasOfferFile = !!arquivoOferta;
+    const hasInput = hasText || hasOfferFile;
+    if (!hasInput) return false;
+    if (fonteDados === "arquivo" && !arquivoBanco) return false;
+    return true;
+  })();
 
   return (
     <>
@@ -388,17 +416,58 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
               </div>
               <div>
                 <div className="mb-2 mt-4">
-                  <p className="ds-eyebrow">Oferta do WhatsApp</p>
+                  <p className="ds-eyebrow">Oferta do fornecedor</p>
                   <p className="mt-1 text-sm text-secondary">
-                    Cole a mensagem recebida do fornecedor, com lista, promocao, imagem convertida em texto ou tabela copiada.
+                    Cole a mensagem recebida do fornecedor (WhatsApp, e-mail, tabela copiada) ou envie um arquivo de oferta (XLSX, CSV).
                   </p>
                 </div>
                 <Textarea
                   className={compact ? "min-h-[160px]" : "min-h-[220px]"}
                   value={textoBruto}
                   onChange={(event) => setTextoBruto(event.target.value)}
-                  placeholder="Ex.: PARACETAMOL 500MG C/20 R$ 12,50"
+                  placeholder={arquivoOferta ? "(Opcional — o arquivo de oferta será usado como entrada principal)" : "Ex.: PARACETAMOL 500MG C/20 R$ 12,50"}
                 />
+
+                {/* Upload de arquivo de oferta */}
+                <div className="mt-3 ds-subpanel rounded-[20px] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-texto">Arquivo de oferta (XLSX, CSV)</p>
+                      <p className="mt-1 text-xs text-secondary">Envie a oferta em formato planilha. O sistema extrairá automaticamente os produtos e preços.</p>
+                    </div>
+                    <span className="ds-icon-chip shrink-0 text-primariaapp">
+                      <FileUp className="h-4 w-4" />
+                    </span>
+                  </div>
+                  {arquivoOferta ? (
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] border border-app bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgb(var(--bg-input) / 0.92))] px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-texto">{arquivoOferta.name}</p>
+                        <p className="mt-1 text-xs text-secondary">{(arquivoOferta.size / 1024 / 1024).toFixed(2)} MB</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setArquivoOferta(null)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-app text-secondary transition hover:border-app-strong hover:text-texto"
+                        aria-label="Remover arquivo de oferta"
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="mt-3 block cursor-pointer rounded-[16px] border border-dashed border-[rgb(var(--accent-secondary) / 0.35)] bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgb(var(--bg-input) / 0.85))] px-4 py-4 text-center transition hover:border-[rgb(var(--accent-secondary) / 0.55)]">
+                      <input
+                        type="file"
+                        accept=".csv,.xlsx,.xls"
+                        className="sr-only"
+                        onChange={(event) => setArquivoOferta(event.target.files?.[0] ?? null)}
+                      />
+                      <FileUp className="mx-auto h-5 w-5 text-primariaapp" />
+                      <p className="mt-2 text-xs font-medium text-texto">Selecionar arquivo de oferta</p>
+                      <p className="mt-1 text-[10px] text-secondary">XLSX, CSV</p>
+                    </label>
+                  )}
+                </div>
               </div>
             </div>
             {fonteDados === "arquivo" && (

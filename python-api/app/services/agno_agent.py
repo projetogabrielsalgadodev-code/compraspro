@@ -395,14 +395,24 @@ async def executar_analise_oferta(
     model_id: str | None = None,
     dados_arquivo: str | None = None,
     rows_arquivo: list[dict] | None = None,
+    itens_oferta_arquivo: list[dict] | None = None,
 ) -> tuple[AnaliseOfertaAgnoOutput, dict]:
     """
     Executa a analise de oferta completa de forma 100% DETERMINISTICA.
     
     Tanto para modo Arquivo quanto modo Banco:
-      1. Extrai itens da oferta via LLM (com fallback regex)
+      1. Extrai itens da oferta via LLM (com fallback regex) OU usa itens pre-parseados
       2. Constroi indice em memoria (do arquivo ou do banco restrito a empresa)
       3. Cruza dados em Python (match + variacao + classificacao)
+    
+    Args:
+        texto_bruto: Texto bruto da oferta (WhatsApp, colado, etc.)
+        empresa_id: ID da empresa do usuário autenticado.
+        model_id: Override do modelo Claude (opcional).
+        dados_arquivo: Dados formatados do arquivo (legacy).
+        rows_arquivo: Linhas do arquivo de histórico (entradas).
+        itens_oferta_arquivo: Itens extraídos diretamente de um arquivo de oferta
+                              (XLSX/CSV). Quando presente, pula a extração LLM.
     """
     from app.services.offer_extractor import extrair_itens
     from app.services.analysis_engine import (
@@ -414,9 +424,24 @@ async def executar_analise_oferta(
 
     start_time = time.time()
     
-    # FASE 1: Extrair itens da oferta (LLM formatado para List[Dict] ou Regex)
-    fornecedor_extraido, itens_extraidos = await extrair_itens(texto_bruto)
-    logger.info(f"Fase 1 (extracao): {len(itens_extraidos)} itens, fornecedor={fornecedor_extraido}")
+    # FASE 1: Extrair itens da oferta
+    extracao_metrics = {"tokens_utilizados": 0, "custo_reais": 0.0}
+    
+    if itens_oferta_arquivo:
+        # Items already parsed from offer file — skip LLM entirely
+        itens_extraidos = itens_oferta_arquivo
+        fornecedor_extraido = None
+        # Try to detect supplier from file data
+        for item in itens_oferta_arquivo[:1]:
+            # Some offer files include a 'fornecedor' field
+            if "fornecedor" in item:
+                fornecedor_extraido = item["fornecedor"]
+                break
+        logger.info(f"Fase 1 (arquivo oferta): {len(itens_extraidos)} itens pre-parseados")
+    else:
+        # Standard: LLM/regex extraction from text
+        fornecedor_extraido, itens_extraidos, extracao_metrics = await extrair_itens(texto_bruto)
+        logger.info(f"Fase 1 (extracao): {len(itens_extraidos)} itens, fornecedor={fornecedor_extraido}")
 
     if not itens_extraidos:
         raise ValueError(
@@ -445,11 +470,11 @@ async def executar_analise_oferta(
 
     elapsed_ms = int((time.time() - start_time) * 1000)
 
-    # Metricas (custo do LLM para a fase 1 fica na fase 1 se implementado, mas passamos 0 como fallback)
+    # Metricas
     metrics_dict = {
         "tempo_processamento_ms": elapsed_ms,
-        "tokens_utilizados": 0,
-        "custo_reais": 0.0,
+        "tokens_utilizados": extracao_metrics.get("tokens_utilizados", 0),
+        "custo_reais": extracao_metrics.get("custo_reais", 0.0),
     }
 
     logger.info(f"Analise deterministica concluida em {elapsed_ms}ms")

@@ -1,4 +1,4 @@
-import { getUsers, getEmpresasList, getEmpresaById } from './actions'
+import { getUsers, getEmpresasList, getEmpresaById, getUsersUsageStats } from './actions'
 import { UserManager } from './components/user-manager'
 import { Building2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
@@ -11,10 +11,11 @@ export default async function UsuariosPage({
   searchParams: { empresa_id?: string }
 }) {
   const empresaId = searchParams.empresa_id
-  const [users, empresas, empresaFiltrada] = await Promise.all([
+  const [users, empresas, empresaFiltrada, usageStats] = await Promise.all([
     getUsers(empresaId),
     getEmpresasList(),
     empresaId ? getEmpresaById(empresaId) : null,
+    getUsersUsageStats(),
   ])
 
   return (
@@ -49,6 +50,7 @@ export default async function UsuariosPage({
         initialUsers={users}
         empresas={empresas}
         empresaIdFilter={empresaId}
+        usageStats={usageStats}
       />
     </>
   )

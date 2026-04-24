@@ -34,7 +34,7 @@ from app.models.schemas import (
     ResumoAnalise,
 )
 from app.services.agno_agent import executar_analise_oferta
-from app.services.file_parser import format_file_data_for_prompt, parse_uploaded_file
+from app.services.file_parser import format_file_data_for_prompt, parse_uploaded_file, parse_offer_file
 from app.services.persistencia_service import salvar_analise, salvar_itens_analise
 
 logger = logging.getLogger(__name__)
@@ -90,6 +90,7 @@ async def _executar_e_persistir(
     is_async: bool = False,
     dados_arquivo: str | None = None,
     rows_arquivo: list | None = None,
+    itens_oferta_arquivo: list | None = None,
 ) -> OfertaAnalyzeResponse:
     """Executa a analise e persiste no Supabase. Retorna o response completo."""
     resultado_agno, metrics = await executar_analise_oferta(
@@ -97,6 +98,7 @@ async def _executar_e_persistir(
         empresa_id=empresa_id,
         dados_arquivo=dados_arquivo,
         rows_arquivo=rows_arquivo,
+        itens_oferta_arquivo=itens_oferta_arquivo,
     )
 
     itens_response = _build_itens_response(resultado_agno)
@@ -184,6 +186,7 @@ async def _background_analise(
     fornecedor_informado: str | None,
     dados_arquivo: str | None = None,
     rows_arquivo: list | None = None,
+    itens_oferta_arquivo: list | None = None,
 ):
     """Task executada em background. Atualiza o status no Supabase ao terminar."""
     client = get_supabase_client()
@@ -198,6 +201,7 @@ async def _background_analise(
             is_async=True,
             dados_arquivo=dados_arquivo,
             rows_arquivo=rows_arquivo,
+            itens_oferta_arquivo=itens_oferta_arquivo,
         )
 
         # Atualizar o registro com o resultado completo e status=concluida
@@ -266,6 +270,7 @@ async def analisar_oferta_async(
                 "fornecedor": payload.fornecedor_informado,
                 "origem": "texto",
                 "entrada_bruta": payload.texto_bruto,
+                "fonte_dados": "banco",
                 "status": "processando",
                 "created_at": datetime.now(ZoneInfo("UTC")).isoformat(),
             }).execute()
@@ -300,13 +305,17 @@ async def analisar_oferta_async_file(
     fornecedor_informado: str = Form(None),
     usuario_id: str = Form(None),
     arquivo: UploadFile | None = File(None),
+    arquivo_oferta: UploadFile | None = File(None),
 ):
     """
     Inicia a análise em background com suporte a upload de arquivo.
     Aceita multipart/form-data.
 
-    Quando fonte_dados="arquivo", o arquivo enviado é parseado e seus dados
-    são injetados diretamente no prompt do agente IA como referência histórica.
+    Fluxos suportados:
+    - texto_bruto + fonte_dados="banco": oferta em texto, comparar com BD
+    - texto_bruto + fonte_dados="arquivo" + arquivo: oferta em texto, comparar com arquivo
+    - arquivo_oferta + fonte_dados="banco": oferta em arquivo, comparar com BD
+    - arquivo_oferta + fonte_dados="arquivo" + arquivo: oferta em arquivo, comparar com arquivo
 
     SEGURANÇA: empresa_id extraído do JWT via dependency injection.
     """
@@ -318,15 +327,20 @@ async def analisar_oferta_async_file(
             detail="ANTHROPIC_API_KEY não configurada.",
         )
 
-    if fonte_dados != "arquivo" and (not texto_bruto or not texto_bruto.strip()):
+    # Validate: need at least texto_bruto OR arquivo_oferta
+    has_text = texto_bruto and texto_bruto.strip()
+    has_offer_file = arquivo_oferta is not None
+
+    if not has_text and not has_offer_file:
         raise HTTPException(
             status_code=400,
-            detail="texto_bruto é obrigatório quando não usar arquivo.",
+            detail="Envie texto_bruto ou arquivo_oferta para análise.",
         )
 
-    # Parsear arquivo se fonte_dados=arquivo
+    # Parsear arquivo de HISTÓRICO se fonte_dados=arquivo
     rows_arquivo: list | None = None
     dados_arquivo_str: str | None = None
+    file_bytes = None
     if fonte_dados == "arquivo":
         if not arquivo:
             raise HTTPException(
@@ -342,14 +356,46 @@ async def analisar_oferta_async_file(
                     status_code=400,
                     detail="Nenhum dado encontrado no arquivo enviado.",
                 )
-            logger.info(f"Arquivo {filename} parseado: {len(rows_arquivo)} registros para analise deterministica")
+            logger.info(f"Arquivo histórico {filename} parseado: {len(rows_arquivo)} registros")
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            logger.exception(f"Erro ao parsear arquivo: {e}")
+            logger.exception(f"Erro ao parsear arquivo de histórico: {e}")
             raise HTTPException(
                 status_code=400,
-                detail=f"Erro ao processar arquivo: {str(e)}",
+                detail=f"Erro ao processar arquivo de histórico: {str(e)}",
+            )
+
+    # Parsear arquivo de OFERTA se fornecido
+    itens_oferta_arquivo: list | None = None
+    fornecedor_do_arquivo: str | None = None
+    if has_offer_file:
+        try:
+            offer_bytes = await arquivo_oferta.read()
+            offer_filename = arquivo_oferta.filename or "oferta.xlsx"
+            itens_oferta_arquivo, fornecedor_do_arquivo = parse_offer_file(offer_bytes, offer_filename)
+            if not itens_oferta_arquivo:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Nenhum item encontrado no arquivo de oferta.",
+                )
+            # Use detected supplier as fallback if user didn't provide one
+            if fornecedor_do_arquivo and not fornecedor_informado:
+                fornecedor_informado = fornecedor_do_arquivo
+                logger.info(f"Fornecedor auto-detectado do arquivo: {fornecedor_do_arquivo}")
+            # Use a placeholder texto_bruto for persistence if text is empty
+            if not has_text:
+                texto_bruto = f"[Oferta via arquivo: {offer_filename}]"
+            logger.info(f"Arquivo oferta {offer_filename} parseado: {len(itens_oferta_arquivo)} itens")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Erro ao parsear arquivo de oferta: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Erro ao processar arquivo de oferta: {str(e)}",
             )
 
     analise_id = str(uuid4())
@@ -358,13 +404,21 @@ async def analisar_oferta_async_file(
     client = get_supabase_client()
     if client:
         try:
+            # Metadados do arquivo para a página de inputs
+            nome_arq_hist = arquivo.filename if arquivo else None
+            tamanho_arq = len(file_bytes) if file_bytes else None
+            nome_arq_oferta = arquivo_oferta.filename if arquivo_oferta else None
+
             client.table("analises_oferta").insert({
                 "id": analise_id,
                 "empresa_id": empresa_id,
                 "usuario_id": usuario_id,
                 "fornecedor": fornecedor_informado,
-                "origem": "arquivo" if fonte_dados == "arquivo" else "texto",
+                "origem": "arquivo" if has_offer_file else ("arquivo" if fonte_dados == "arquivo" else "texto"),
                 "entrada_bruta": texto_bruto,
+                "fonte_dados": fonte_dados,
+                "nome_arquivo_historico": nome_arq_hist,
+                "tamanho_arquivo_historico": tamanho_arq,
                 "status": "processando",
                 "created_at": datetime.now(ZoneInfo("UTC")).isoformat(),
             }).execute()
@@ -381,6 +435,7 @@ async def analisar_oferta_async_file(
         fornecedor_informado=fornecedor_informado,
         dados_arquivo=dados_arquivo_str,
         rows_arquivo=rows_arquivo,
+        itens_oferta_arquivo=itens_oferta_arquivo,
     )
 
     return {

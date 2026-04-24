@@ -50,10 +50,20 @@ export function OfferCard({ item, analiseId }: { item: ItemOferta; analiseId?: s
             <p className="text-xs uppercase tracking-wide text-muted-app">Preço da oferta</p>
             <p className="text-2xl font-bold text-texto">{formatarMoeda(item.preco_oferta)}</p>
           </div>
-          <div className="text-right">
-            <p className="text-xs uppercase tracking-wide text-muted-app">Var. vs histórico</p>
-            {/* C-28: Variação colorida por status */}
-            <p className={`text-sm font-semibold ${corVariacao(item.variacao_percentual)}`}>{formatarPercentual(item.variacao_percentual)}</p>
+          <div className="flex gap-6 text-right">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-app">Dif. Nominal</p>
+              <p className={`text-sm font-semibold ${corVariacao(item.variacao_percentual)}`}>
+                {item.menor_historico ? formatarMoeda(item.menor_historico - item.preco_oferta) : "--"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-app">Var. vs histórico</p>
+              {/* C-28: Variação colorida por status */}
+              <p className={`text-sm font-semibold ${corVariacao(item.variacao_percentual)}`}>
+                {formatarPercentual(item.variacao_percentual)}
+              </p>
+            </div>
           </div>
         </div>
       </button>

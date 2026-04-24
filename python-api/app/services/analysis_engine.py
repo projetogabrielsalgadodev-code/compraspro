@@ -31,6 +31,14 @@ _GENERIC_FORM_TOKENS = {
     "pastilha", "pastilhas", "infantil", "adulto", "pediatrico",
     "injetavel", "topico", "generico", "similar", "referencia",
     "eurofarma", "medley",
+    # Common non-pharmaceutical words that cause false positives
+    "bolso", "display", "refil", "caixa", "blister", "cartela",
+    "fracionado", "embalagem", "unidade", "unidades", "original",
+    "lacrado", "especial", "promocional", "linha", "marca",
+    "fresh", "menta", "limao", "morango", "cereja", "uva",
+    "laranja", "framboesa", "tutti", "frutti", "sabor",
+    "mastigavel", "efervescente", "sublingual", "retard",
+    "revestido", "liberacao", "prolongada", "modificada",
 }
 
 
@@ -203,6 +211,20 @@ def _match_item_no_arquivo(
     drug_tokens = {t for t in item_tokens if len(t) >= 4 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
     generic_tokens = item_tokens - drug_tokens
 
+    # Identify the PRIMARY token — the first significant word in the description
+    # This is usually the product/molecule name (e.g., "GASTROGEL", "DONEPEZILA")
+    import re as _re_match
+    words = _re_match.findall(r"[A-Za-zÀ-ú]{4,}", descricao.upper())
+    primary_token = None
+    for w in words:
+        w_lower = w.lower()
+        if w_lower not in _GENERIC_FORM_TOKENS and w_lower not in {"caps", "comp", "cprs", "drgs"}:
+            primary_token = w_lower
+            break
+
+    # Maximum possible score (for coverage threshold)
+    max_possible_score = len(drug_tokens) * 5.0 + len(generic_tokens) * 1.0
+
     candidate_scores: dict[str, float] = {}
     for token in drug_tokens:
         for ean in token_index.get(token, []):
@@ -223,6 +245,17 @@ def _match_item_no_arquivo(
         common_drug_tokens = drug_tokens & best_desc_tokens
 
         if not common_drug_tokens and best_score < 10:
+            continue
+
+        # PRIMARY TOKEN CHECK: the main product name must appear in the candidate
+        # This prevents GASTROGEL DE BOLSO → CALCULADORA DE BOLSO
+        if primary_token and primary_token not in best_desc_tokens:
+            # Allow only if coverage is very high (>= 60%) — meaning lots of other tokens match
+            if max_possible_score > 0 and (best_score / max_possible_score) < 0.6:
+                continue
+
+        # COVERAGE THRESHOLD: score must represent at least 30% of possible
+        if max_possible_score > 0 and (best_score / max_possible_score) < 0.3:
             continue
 
         # Filtrar por categoria farmacêutica: não misturar líquido com sólido
@@ -373,10 +406,20 @@ def construir_indice_arquivo(rows: list[dict]) -> tuple[dict[str, dict], dict[st
 
     by_ean: dict[str, list[dict]] = defaultdict(list)
 
+    import re as _re
+    _EAN_PATTERN = _re.compile(r"^\d{8,14}$")
+
     for row in rows:
         ean = row.get("ean")
-        if ean and str(ean).strip() and str(ean).strip() not in ("0", "None", "none", "null"):
-            by_ean[str(ean).strip()].append(row)
+        if ean:
+            ean_str = str(ean).strip()
+            # Validate: must be numeric with 8-14 digits (standard EAN/GTIN)
+            # Filters out garbage like "00000SEM GTIN", "None", etc.
+            if _EAN_PATTERN.match(ean_str) and ean_str not in ("0", "00000000"):
+                # Also trim description while we're here (fix #7)
+                if row.get("descricao"):
+                    row["descricao"] = str(row["descricao"]).strip()
+                by_ean[ean_str].append(row)
 
     ean_stats: dict[str, dict] = {}
     for ean, entries in by_ean.items():

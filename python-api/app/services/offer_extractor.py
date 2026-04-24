@@ -149,6 +149,9 @@ async def extrair_itens_llm(texto: str) -> tuple[str | None, list[dict[str, Any]
     """
     Extrai itens usando Claude com prompt expandido.
     Entende: hierarquia, %, blocos, emojis, formatos WhatsApp.
+    
+    Returns:
+        fornecedor, itens, metrics
     """
     from agno.agent import Agent
     from agno.models.anthropic import Claude
@@ -175,6 +178,38 @@ async def extrair_itens_llm(texto: str) -> tuple[str | None, list[dict[str, Any]
     response = await agent.arun(prompt)
     content = response.content
 
+    # Extrair Métricas de Uso
+    metrics = {"tokens_utilizados": 0, "custo_reais": 0.0}
+    if hasattr(response, "metrics") and response.metrics:
+        # Agno metrics are usually inside response.metrics
+        metr_dict = response.metrics if isinstance(response.metrics, dict) else (getattr(response, "run_metrics", None) or {})
+        
+        input_tokens = metr_dict.get("input_tokens", metr_dict.get("prompt_tokens", 0))
+        output_tokens = metr_dict.get("output_tokens", metr_dict.get("completion_tokens", 0))
+        
+        # Agno may sometimes return a list or dict for multi-turn metrics
+        if isinstance(input_tokens, list): input_tokens = sum(input_tokens)
+        elif isinstance(input_tokens, dict): input_tokens = sum(input_tokens.values())
+        
+        if isinstance(output_tokens, list): output_tokens = sum(output_tokens)
+        elif isinstance(output_tokens, dict): output_tokens = sum(output_tokens.values())
+        
+        input_tokens = int(input_tokens)
+        output_tokens = int(output_tokens)
+        
+        total_tokens = metr_dict.get("total_tokens", input_tokens + output_tokens)
+        if isinstance(total_tokens, list): total_tokens = sum(total_tokens)
+        elif isinstance(total_tokens, dict): total_tokens = sum(total_tokens.values())
+        total_tokens = int(total_tokens)
+        
+        metrics["tokens_utilizados"] = total_tokens
+        
+        # Custo aproximado para Claude 3.5 Sonnet (USD 3 / 1M input, USD 15 / 1M output) -> Dólar a ~R$ 5.50
+        # Input: R$ 16,50 por milhão | Output: R$ 82,50 por milhão
+        custo_input = (input_tokens / 1_000_000) * 16.50
+        custo_output = (output_tokens / 1_000_000) * 82.50
+        metrics["custo_reais"] = round(custo_input + custo_output, 4)
+
     # Parsear JSON da resposta
     if isinstance(content, str):
         content = re.sub(r"```(?:json)?\s*", "", content).strip()
@@ -191,15 +226,15 @@ async def extrair_itens_llm(texto: str) -> tuple[str | None, list[dict[str, Any]
                     data = json.loads(content[start:end + 1])
                 except json.JSONDecodeError:
                     logger.error(f"LLM retornou JSON invalido: {content[:500]}")
-                    return None, []
+                    return None, [], metrics
             else:
                 logger.error(f"LLM nao retornou JSON: {content[:300]}")
-                return None, []
+                return None, [], metrics
     elif isinstance(content, dict):
         data = content
     else:
         logger.error(f"LLM retornou tipo inesperado: {type(content)}")
-        return None, []
+        return None, [], metrics
 
     fornecedor = data.get("fornecedor")
     itens_raw = data.get("itens", [])
@@ -260,7 +295,7 @@ async def extrair_itens_llm(texto: str) -> tuple[str | None, list[dict[str, Any]
         })
 
     logger.info(f"LLM extraiu {len(itens)} itens, fornecedor={fornecedor}")
-    return fornecedor, itens
+    return fornecedor, itens, metrics
 
 
 # ─── Extracao Regex (fallback) ────────────────────────────────────────────────
@@ -273,17 +308,25 @@ def _limpar_descricao(desc: str) -> str:
 
 
 def _parse_preco_br(texto: str) -> float | None:
-    """Parseia preco em formato brasileiro: 24,17 ou 24.17 ou 1.234,56"""
+    """Parseia preco em formato brasileiro: 24,17 ou 24.17 ou 1.234,56 ou 15.1905"""
     texto = texto.strip().replace(" ", "")
-    m = re.match(r"(\d{1,3}(?:\.\d{3})*,\d{2})$", texto)
+    # Brazilian thousands format: 1.234,56
+    m = re.match(r"(\d{1,3}(?:\.\d{3})*,\d{2,})$", texto)
     if m:
         return float(m.group(1).replace(".", "").replace(",", "."))
-    m = re.match(r"(\d+,\d{2})$", texto)
+    # Simple comma decimal: 24,17 or 24,1705
+    m = re.match(r"(\d+,\d{2,})$", texto)
     if m:
         return float(m.group(1).replace(",", "."))
-    m = re.match(r"(\d+\.\d{2})$", texto)
+    # English dot decimal: 24.17 or 15.1905
+    m = re.match(r"(\d+\.\d+)$", texto)
     if m:
         return float(m.group(1))
+    # Integer
+    m = re.match(r"(\d+)$", texto)
+    if m:
+        val = float(m.group(1))
+        return val if val > 0 else None
     return None
 
 def _classificar_forma_farmaceutica(desc: str) -> str:
@@ -379,6 +422,10 @@ def extrair_multiplicador_inteligente(desc: str) -> float:
     A mesma função é usada tanto para oferta quanto para histórico,
     garantindo que a comparação de preço unitário seja justa.
     """
+    # Remove controlled substance markers (C1), (C2), (C4), (C5) that
+    # would otherwise be matched by the C/N pattern as "Com 1 unidade"
+    desc = re.sub(r"\(C[1-5]\)", "", desc).strip()
+    
     categoria = _classificar_forma_farmaceutica(desc)
     
     # LÍQUIDOS e TÓPICOS: sempre mult=1 (1 frasco/bisnaga)
@@ -419,7 +466,7 @@ def extrair_multiplicador_inteligente(desc: str) -> float:
             mult = float(m_cx.group(1))
             return mult if mult > 0 else 1.0
         
-        m_comp = re.search(r"\b(\d+)\s*(?:COMP|CPR|CAP|DRG)\b", desc, re.IGNORECASE)
+        m_comp = re.search(r"\b(\d+)\s*(?:COMP|CPR|CAPS|CAP|DRG)\b", desc, re.IGNORECASE)
         if m_comp:
             mult = float(m_comp.group(1))
             return mult if mult > 0 else 1.0
@@ -427,7 +474,7 @@ def extrair_multiplicador_inteligente(desc: str) -> float:
         return 1.0
     
     # UNKNOWN — fallback conservador: tentar C/ se existir, senão 1
-    m_c = re.search(r"\b[cC]/?\s*(\d+)\s*(?:CPR|COMP|CAP|DRG)\b", desc, re.IGNORECASE)
+    m_c = re.search(r"\b[cC]/?\s*(\d+)\s*(?:CPR|COMP|CAPS|CAP|DRG)\b", desc, re.IGNORECASE)
     if m_c:
         mult = float(m_c.group(1))
         return mult if mult > 0 else 1.0
@@ -516,7 +563,7 @@ def extrair_itens_regex(texto: str) -> list[dict[str, Any]]:
                 continue
 
         # Pattern 2: "Descricao XX,XX" (sem R$) or "-> Desc XX,XX"
-        m = re.match(r"(.+?)\s+(\d+[.,]\d{2})\s*(?:\(.*\))?\s*$", linha_clean)
+        m = re.match(r"(.+?)\s+(\d+[.,]\d{2,})\s*(?:\(.*\))?\s*$", linha_clean)
         if m:
             desc = _limpar_descricao(m.group(1))
             preco = _parse_preco_br(m.group(2))
@@ -630,19 +677,20 @@ def _detectar_fornecedor_regex(texto: str) -> str | None:
 
 # ─── Orquestrador Principal ──────────────────────────────────────────────────
 
-async def extrair_itens(texto: str) -> tuple[str | None, list[dict[str, Any]]]:
+async def extrair_itens(texto: str) -> tuple[str | None, list[dict[str, Any]], dict[str, Any]]:
     """
     Extrai itens da oferta: LLM primeiro (entende tudo), regex como fallback.
 
     Returns:
-        Tuple de (fornecedor, lista de itens [{descricao, preco, ean, tipo_preco, desconto_percentual}])
+        Tuple de (fornecedor, lista de itens [{descricao, preco, ean, tipo_preco, desconto_percentual}], metrics)
     """
     # LLM primeiro — entende hierarquia, %, blocos, emojis
+    metrics = {"tokens_utilizados": 0, "custo_reais": 0.0}
     try:
-        fornecedor, itens = await extrair_itens_llm(texto)
+        fornecedor, itens, metrics = await extrair_itens_llm(texto)
         if itens:
-            logger.info(f"Extracao via LLM: {len(itens)} itens, fornecedor={fornecedor}")
-            return fornecedor, itens
+            logger.info(f"Extracao via LLM: {len(itens)} itens, fornecedor={fornecedor}, custo={metrics.get('custo_reais')}")
+            return fornecedor, itens, metrics
     except Exception as e:
         logger.warning(f"LLM falhou na extracao: {e}")
 
@@ -653,7 +701,7 @@ async def extrair_itens(texto: str) -> tuple[str | None, list[dict[str, Any]]]:
 
     if itens:
         logger.info(f"Extracao via REGEX (fallback): {len(itens)} itens")
-        return fornecedor, itens
+        return fornecedor, itens, metrics
 
     logger.warning("Nenhum item extraido (LLM + regex falharam)")
-    return None, []
+    return None, [], metrics

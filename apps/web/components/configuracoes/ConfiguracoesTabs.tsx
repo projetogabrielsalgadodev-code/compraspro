@@ -25,6 +25,12 @@ interface PerfilData {
   papel: string
 }
 
+interface UsageStats {
+  total_analises: number
+  total_tokens: number
+  total_custo: number
+}
+
 const TABS = [
   { id: "parametros", label: "Parâmetros", icon: Settings2 },
   { id: "empresa", label: "Empresa", icon: Building2 },
@@ -36,9 +42,11 @@ type TabId = typeof TABS[number]["id"]
 export function ConfiguracoesTabs({
   empresa,
   perfil,
+  usageStats,
 }: {
   empresa: EmpresaData | null
   perfil: PerfilData | null
+  usageStats?: UsageStats
 }) {
   const [activeTab, setActiveTab] = useState<TabId>("parametros")
 
@@ -74,7 +82,7 @@ export function ConfiguracoesTabs({
           Nenhuma empresa vinculada ao seu perfil.
         </div>
       )}
-      {activeTab === "perfil" && perfil && <PerfilForm perfil={perfil} />}
+      {activeTab === "perfil" && perfil && <PerfilForm perfil={perfil} usageStats={usageStats} />}
       {activeTab === "perfil" && !perfil && (
         <div className="ds-subpanel rounded-2xl p-6 text-center text-secondary">
           Perfil não encontrado.
@@ -83,3 +91,4 @@ export function ConfiguracoesTabs({
     </div>
   )
 }
+
