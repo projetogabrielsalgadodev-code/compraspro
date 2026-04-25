@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://127.0.0.1:8000";
 const INTERNAL_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
+// ─── Vercel Serverless Config ────────────────────────────────────────────────
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -33,9 +37,9 @@ export async function POST(request: Request) {
     payload.empresa_id = perfil.empresa_id;
     payload.usuario_id = user.id;
 
-    // Timeout: 30s to avoid hanging if FastAPI is slow
+    // Timeout: 55s — deve ser menor que maxDuration (60s)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    const timeoutId = setTimeout(() => controller.abort(), 55_000);
 
     // Autenticação service-to-service: chave interna + empresa_id/user_id via headers
     const response = await fetch(`${FASTAPI_URL}/api/ofertas/analisar-async`, {

@@ -4,6 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://127.0.0.1:8000";
 const INTERNAL_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
+// ─── Vercel Serverless Config ────────────────────────────────────────────────
+// maxDuration: Hobby=10s, Pro=60s. Aumentar para comportar upload + cold start do Render.
+export const maxDuration = 60;
+
+// Desabilitar o body parser padrão do Next.js (limite de 1MB) para aceitar uploads grandes.
+// O formData() do Web API não tem esse limite.
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -51,9 +59,9 @@ export async function POST(request: Request) {
       fastapiFormData.append("arquivo_oferta", arquivoOferta, arquivoOferta.name);
     }
 
-    // Timeout: 30s to avoid hanging if FastAPI is slow
+    // Timeout: 55s — deve ser menor que maxDuration (60s) para retornar erro legível
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    const timeoutId = setTimeout(() => controller.abort(), 55_000);
 
     const response = await fetch(`${FASTAPI_URL}/api/ofertas/analisar-async-file`, {
       method: "POST",
@@ -88,4 +96,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Erro interno ao conectar com o backend.", detail: errMessage }, { status: 500 });
   }
 }
-

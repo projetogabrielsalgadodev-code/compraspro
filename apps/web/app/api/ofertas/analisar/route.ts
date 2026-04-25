@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://localhost:8000";
 const INTERNAL_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
+// ─── Vercel Serverless Config ────────────────────────────────────────────────
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
