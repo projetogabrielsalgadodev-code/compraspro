@@ -39,6 +39,10 @@ _GENERIC_FORM_TOKENS = {
     "laranja", "framboesa", "tutti", "frutti", "sabor",
     "mastigavel", "efervescente", "sublingual", "retard",
     "revestido", "liberacao", "prolongada", "modificada",
+    # Cosmetic/presentation terms that cause pharma ↔ cosmetics false positives
+    "emulsao", "capilar", "fluido", "condicionador", "harmonizacao",
+    "treino", "color", "touch", "novex", "revlon", "loreal",
+    "hidratante", "nutritivo", "reparador", "alisamento",
 }
 
 

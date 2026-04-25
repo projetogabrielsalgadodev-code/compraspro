@@ -347,10 +347,10 @@ def _classificar_forma_farmaceutica(desc: str) -> str:
     liquido_markers = [
         "XAROPE", "XPE ", "XPE.", "XAROPE",
         "SOL NASAL", "SOL ORAL", "SOL ", "SOLUCAO", "SOLUÇÃO",
-        "SUSP ", "SUSPENSAO", "SUSPENSÃO",
+        "SUSP ", "SUSPENSAO", "SUSPENSÃO", "SUS-",
         "GTS ", "GOTAS", " GTS",
         "SPRAY", "COLIRI", "COLIRIO",
-        "ELIXIR",
+        "ELIXIR", "FLAC ",
     ]
     for marker in liquido_markers:
         if marker in d:
@@ -363,8 +363,8 @@ def _classificar_forma_farmaceutica(desc: str) -> str:
     
     # Tópicos — preço por UNIDADE (bisnaga/tubo), não por grama
     topico_markers = [
-        "CREME", "POMADA", "POM ", "GEL ",
-        "LOCAO", "LOÇÃO", "SHAMPOO",
+        "CREME", "POMADA", "POM ", " GEL ",
+        "LOCAO", "LOÇÃO", "SHAMPOO", "EMULSAO",
         " BG ", "BISNAGA",
     ]
     for marker in topico_markers:
@@ -382,7 +382,7 @@ def _classificar_forma_farmaceutica(desc: str) -> str:
     
     # Sólidos contáveis — preço por comprimido/cápsula
     solido_markers = [
-        "CPR", "COMP", "CAP", "DRG", "DRAGEA", "DRÁGEA",
+        "CPR", "COMP", "CAP", "CPS", "DRG", "DRAGEA", "DRÁGEA",
         "PASTILHA", "PAST ",
     ]
     for marker in solido_markers:
@@ -428,8 +428,21 @@ def extrair_multiplicador_inteligente(desc: str) -> float:
     
     categoria = _classificar_forma_farmaceutica(desc)
     
-    # LÍQUIDOS e TÓPICOS: sempre mult=1 (1 frasco/bisnaga)
+    # LÍQUIDOS e TÓPICOS: normally mult=1 (1 frasco/bisnaga)
+    # BUT: display packs like "FLAC 10ML 60" = 60 frascos → mult = 60
     if categoria in ("liquido", "topico", "po"):
+        # Check for display packs: FLAC NML M where M is pack quantity
+        # Pattern: FLAC followed by volume (NML) then quantity (M)
+        # e.g., "BOLDOBEBA BOLDO FLAC 10ML 60-MQS" → 60 frascos
+        # e.g., "GASTROGEL DE BOLSO FLAC 10ML 12-MQS" → 12 frascos
+        m_display_liq = re.search(
+            r"FLAC\s+\d+\s*ML\s+(\d+)",
+            desc, re.IGNORECASE,
+        )
+        if m_display_liq:
+            pack_qty = float(m_display_liq.group(1))
+            if pack_qty > 1:
+                return pack_qty
         return 1.0
     
     # SACHÊS / ENVELOPES
@@ -466,7 +479,7 @@ def extrair_multiplicador_inteligente(desc: str) -> float:
             mult = float(m_cx.group(1))
             return mult if mult > 0 else 1.0
         
-        m_comp = re.search(r"\b(\d+)\s*(?:COMP|CPR|CAPS|CAP|DRG)\b", desc, re.IGNORECASE)
+        m_comp = re.search(r"\b(\d+)\s*(?:COMP|CPR|CAPS|CAP|CPS|DRG)\b", desc, re.IGNORECASE)
         if m_comp:
             mult = float(m_comp.group(1))
             return mult if mult > 0 else 1.0
@@ -474,7 +487,7 @@ def extrair_multiplicador_inteligente(desc: str) -> float:
         return 1.0
     
     # UNKNOWN — fallback conservador: tentar C/ se existir, senão 1
-    m_c = re.search(r"\b[cC]/?\s*(\d+)\s*(?:CPR|COMP|CAPS|CAP|DRG)\b", desc, re.IGNORECASE)
+    m_c = re.search(r"\b[cC]/?\s*(\d+)\s*(?:CPR|COMP|CAPS|CAP|CPS|DRG)\b", desc, re.IGNORECASE)
     if m_c:
         mult = float(m_c.group(1))
         return mult if mult > 0 else 1.0
