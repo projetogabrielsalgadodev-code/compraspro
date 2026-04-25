@@ -213,27 +213,76 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
 
       let analiseId: string | null = null;
 
-      // Always use file endpoint when any file is present (offer file or history file)
+      // Verifica se há algum arquivo para enviar
       const hasFiles = !!arquivoOferta || fonteDados === "arquivo";
 
       if (hasFiles) {
-        // ─── Modo com arquivo (oferta e/ou histórico) ──────────────────
-        const formData = new FormData();
-        formData.append("texto_bruto", textoBruto || "");
-        formData.append("fonte_dados", fonteDados);
-        if (fornecedor.trim()) {
-          formData.append("fornecedor_informado", fornecedor.trim());
-        }
-        if (arquivoBanco && fonteDados === "arquivo") {
-          formData.append("arquivo", arquivoBanco, arquivoBanco.name);
-        }
+        // ─── Novo fluxo via Supabase Storage ─────────────────────────────
+        // 1. Upload dos arquivos direto pro Supabase Storage (sem passar pela Vercel)
+        // 2. Chama API leve com os paths do Storage
+        // Isso elimina os limites de body size (4.5MB) e timeout da Vercel
+
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+
+        // Gerar ID único para este upload
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Usuário não autenticado.");
+
+        const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        let storagePaths: {
+          storage_path_oferta?: string;
+          storage_path_historico?: string;
+          nome_arquivo_oferta?: string;
+          nome_arquivo_historico?: string;
+        } = {};
+
+        // Upload arquivo de OFERTA para o Storage
         if (arquivoOferta) {
-          formData.append("arquivo_oferta", arquivoOferta, arquivoOferta.name);
+          const ext = arquivoOferta.name.split(".").pop() || "xlsx";
+          const storagePath = `${user.id}/${uploadId}/oferta.${ext}`;
+          const { error: uploadErr } = await supabase.storage
+            .from("uploads-temp")
+            .upload(storagePath, arquivoOferta, {
+              cacheControl: "300",
+              upsert: false,
+            });
+          if (uploadErr) {
+            throw new Error(`Erro ao enviar arquivo de oferta: ${uploadErr.message}`);
+          }
+          storagePaths.storage_path_oferta = storagePath;
+          storagePaths.nome_arquivo_oferta = arquivoOferta.name;
         }
 
-        const response = await fetch("/api/ofertas/analisar-async-file", {
+        // Upload arquivo de HISTÓRICO (banco) para o Storage
+        if (arquivoBanco && fonteDados === "arquivo") {
+          const ext = arquivoBanco.name.split(".").pop() || "xlsx";
+          const storagePath = `${user.id}/${uploadId}/historico.${ext}`;
+          const { error: uploadErr } = await supabase.storage
+            .from("uploads-temp")
+            .upload(storagePath, arquivoBanco, {
+              cacheControl: "300",
+              upsert: false,
+            });
+          if (uploadErr) {
+            throw new Error(`Erro ao enviar arquivo de histórico: ${uploadErr.message}`);
+          }
+          storagePaths.storage_path_historico = storagePath;
+          storagePaths.nome_arquivo_historico = arquivoBanco.name;
+        }
+
+        // 2. Chamar API leve (JSON, sem arquivos) com os paths do Storage
+        const payload = {
+          texto_bruto: textoBruto || "",
+          fonte_dados: fonteDados,
+          fornecedor_informado: fornecedor.trim() || null,
+          ...storagePaths,
+        };
+
+        const response = await fetch("/api/ofertas/analisar-via-storage", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
 
         if (!response.ok) {

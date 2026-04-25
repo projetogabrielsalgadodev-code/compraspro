@@ -21,6 +21,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from app.db.supabase_client import get_settings, get_supabase_client
 from app.middleware import get_current_empresa_id, get_current_user_id
@@ -526,3 +527,214 @@ async def analisar_oferta(
             status_code=500,
             detail=f"Erro ao processar análise: {str(e)}",
         )
+
+
+# ─── Endpoint 4: Análise via Supabase Storage (elimina limites de upload) ─────
+
+class StorageAnalyzeRequest(BaseModel):
+    """Request para análise via Storage. Arquivos já estão no Supabase Storage."""
+    texto_bruto: str = ""
+    fonte_dados: str = "banco"
+    fornecedor_informado: str | None = None
+    usuario_id: str | None = None
+    storage_path_oferta: str | None = None
+    storage_path_historico: str | None = None
+    nome_arquivo_oferta: str | None = None
+    nome_arquivo_historico: str | None = None
+
+
+
+def _download_from_storage(client, storage_path: str) -> bytes:
+    """Baixa um arquivo do Supabase Storage usando service_role."""
+    try:
+        data = client.storage.from_("uploads-temp").download(storage_path)
+        return data
+    except Exception as e:
+        logger.error(f"Erro ao baixar do Storage ({storage_path}): {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao baixar arquivo do Storage: {str(e)}",
+        )
+
+
+def _cleanup_storage(client, paths: list[str]):
+    """Remove arquivos temporários do Storage após o processamento."""
+    try:
+        if paths:
+            client.storage.from_("uploads-temp").remove(paths)
+            logger.info(f"Arquivos temporários removidos do Storage: {paths}")
+    except Exception as e:
+        logger.warning(f"Falha ao limpar arquivos do Storage (não-bloqueante): {e}")
+
+
+async def _background_analise_storage(
+    analise_id: str,
+    empresa_id: str,
+    usuario_id: str | None,
+    texto_bruto: str,
+    fornecedor_informado: str | None,
+    storage_path_oferta: str | None,
+    storage_path_historico: str | None,
+    nome_arquivo_oferta: str | None,
+    nome_arquivo_historico: str | None,
+    fonte_dados: str,
+):
+    """Background task que baixa arquivos do Storage, processa, e limpa."""
+    client = get_supabase_client()
+    cleanup_paths: list[str] = []
+
+    try:
+        logger.info(f"[BG-Storage] Iniciando analise {analise_id}")
+
+        # Baixar e parsear arquivo de OFERTA do Storage
+        itens_oferta_arquivo: list | None = None
+        if storage_path_oferta and client:
+            offer_bytes = _download_from_storage(client, storage_path_oferta)
+            cleanup_paths.append(storage_path_oferta)
+            filename = nome_arquivo_oferta or "oferta.xlsx"
+            itens_oferta_arquivo, fornecedor_do_arquivo = parse_offer_file(offer_bytes, filename)
+            if fornecedor_do_arquivo and not fornecedor_informado:
+                fornecedor_informado = fornecedor_do_arquivo
+                logger.info(f"Fornecedor auto-detectado: {fornecedor_do_arquivo}")
+            if not texto_bruto.strip():
+                texto_bruto = f"[Oferta via arquivo: {filename}]"
+            logger.info(f"Arquivo oferta do Storage parseado: {len(itens_oferta_arquivo or [])} itens")
+
+        # Baixar e parsear arquivo de HISTÓRICO do Storage
+        rows_arquivo: list | None = None
+        if storage_path_historico and client and fonte_dados == "arquivo":
+            hist_bytes = _download_from_storage(client, storage_path_historico)
+            cleanup_paths.append(storage_path_historico)
+            hist_filename = nome_arquivo_historico or "historico.xlsx"
+            rows_arquivo = parse_uploaded_file(hist_bytes, hist_filename)
+            logger.info(f"Arquivo histórico do Storage parseado: {len(rows_arquivo or [])} registros")
+
+        # Executar análise
+        response_obj = await _executar_e_persistir(
+            analise_id=analise_id,
+            empresa_id=empresa_id,
+            usuario_id=usuario_id,
+            texto_bruto=texto_bruto,
+            fornecedor_informado=fornecedor_informado,
+            is_async=True,
+            rows_arquivo=rows_arquivo,
+            itens_oferta_arquivo=itens_oferta_arquivo,
+        )
+
+        # Atualizar registro com resultado
+        if client:
+            client.table("analises_oferta").update({
+                "status": "concluida",
+                "fornecedor": response_obj.fornecedor,
+                "tempo_processamento_ms": response_obj.tempo_processamento_ms,
+                "tokens_utilizados": response_obj.tokens_utilizados,
+                "custo_reais": float(response_obj.custo_reais) if response_obj.custo_reais else None,
+                "resultado_json": response_obj.model_dump(),
+            }).eq("id", analise_id).execute()
+
+        logger.info(f"[BG-Storage] Análise {analise_id} concluída com sucesso")
+
+    except Exception as e:
+        logger.exception(f"[BG-Storage] Erro na análise {analise_id}: {e}")
+        if client:
+            try:
+                client.table("analises_oferta").update({
+                    "status": "erro",
+                    "resultado_json": {"erro": str(e)},
+                }).eq("id", analise_id).execute()
+            except Exception:
+                pass
+
+    finally:
+        # Limpar arquivos temporários do Storage
+        if client and cleanup_paths:
+            _cleanup_storage(client, cleanup_paths)
+
+
+@router.post("/analisar-via-storage")
+async def analisar_oferta_via_storage(
+    payload: StorageAnalyzeRequest,
+    background_tasks: BackgroundTasks,
+    empresa_id: str = Depends(get_current_empresa_id),
+):
+    """
+    Inicia a análise em background usando arquivos já upados no Supabase Storage.
+
+    Fluxo:
+    1. Frontend faz upload dos arquivos direto pro Supabase Storage (bucket uploads-temp)
+    2. Frontend chama essa rota com os paths do Storage
+    3. Render baixa os arquivos do Storage em background
+    4. Após processamento, arquivos temporários são removidos
+
+    Isso elimina:
+    - Limite de body size da Vercel (4.5 MB / 10s)
+    - Timeout do Render cold start
+    - Transferência de arquivos grandes via HTTP duplo (browser→Vercel→Render)
+
+    SEGURANÇA: empresa_id extraído via dependency injection.
+    """
+    settings = get_settings()
+
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="ANTHROPIC_API_KEY não configurada.",
+        )
+
+    # Validar: precisa de texto OU arquivo de oferta
+    has_text = payload.texto_bruto and payload.texto_bruto.strip()
+    has_offer_file = bool(payload.storage_path_oferta)
+
+    if not has_text and not has_offer_file:
+        raise HTTPException(
+            status_code=400,
+            detail="Envie texto_bruto ou storage_path_oferta para análise.",
+        )
+
+    # Validar que storage paths existem se informados
+    client = get_supabase_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="Banco de dados indisponível.")
+
+    analise_id = str(uuid4())
+    texto_para_persistir = payload.texto_bruto or f"[Oferta via arquivo: {payload.nome_arquivo_oferta or 'upload'}]"
+
+    # Criar registro "processando" no banco imediatamente
+    try:
+        client.table("analises_oferta").insert({
+            "id": analise_id,
+            "empresa_id": empresa_id,
+            "usuario_id": payload.usuario_id,
+            "fornecedor": payload.fornecedor_informado,
+            "origem": "arquivo" if has_offer_file else ("arquivo" if payload.fonte_dados == "arquivo" else "texto"),
+            "entrada_bruta": texto_para_persistir,
+            "fonte_dados": payload.fonte_dados,
+            "nome_arquivo_historico": payload.nome_arquivo_historico,
+            "status": "processando",
+            "created_at": datetime.now(ZoneInfo("UTC")).isoformat(),
+        }).execute()
+    except Exception as e:
+        logger.warning(f"Falha ao criar registro inicial: {e}")
+
+    # Iniciar análise em background — Render baixa os arquivos do Storage
+    background_tasks.add_task(
+        _background_analise_storage,
+        analise_id=analise_id,
+        empresa_id=empresa_id,
+        usuario_id=payload.usuario_id,
+        texto_bruto=payload.texto_bruto or "",
+        fornecedor_informado=payload.fornecedor_informado,
+        storage_path_oferta=payload.storage_path_oferta,
+        storage_path_historico=payload.storage_path_historico,
+        nome_arquivo_oferta=payload.nome_arquivo_oferta,
+        nome_arquivo_historico=payload.nome_arquivo_historico,
+        fonte_dados=payload.fonte_dados,
+    )
+
+    return {
+        "analise_id": analise_id,
+        "status": "processando",
+        "fonte_dados": payload.fonte_dados,
+        "mensagem": "Análise iniciada via Storage. Faça polling em /api/ofertas/status/{analise_id}",
+    }
+
