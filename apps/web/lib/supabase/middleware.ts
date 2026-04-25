@@ -41,16 +41,22 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/favicon") ||
     pathname.includes(".")
 
-  // Otimização de performance: Não chamar getUser (network request) para assets ou APIs
-  // APIs cuidam da própria autenticação internamente.
+  // Bypass total para assets estáticos e rotas de API
+  // APIs fazem sua própria autenticação internamente
   if (isPublicAsset || isApiRoute) {
     return supabaseResponse
   }
 
-  // Refresh session (obrigatório para Server Components) e validação segura
+  // ─── Usar getSession (leitura de cookie local, SEM request de rede) ────────
+  // getSession() decodifica o JWT do cookie localmente — não faz HTTP request.
+  // Isso é seguro para o middleware porque o objetivo aqui é apenas roteamento
+  // (redirecionar para login ou home). As pages/APIs que precisam de validação
+  // segura contra o servidor Supabase usam getUser() internamente.
   const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  const user = session?.user ?? null
 
   // Verifica se é uma rota /auth que permite usuários autenticados
   const isAuthRouteAllowAuthenticated = AUTH_ROUTES_ALLOW_AUTHENTICATED.some(
@@ -76,22 +82,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // ─── Proteção de rotas /admin → exige isadmin = true ──────────────────────
-  const isAdminRoute = pathname.startsWith("/admin")
-
-  if (user && isAdminRoute) {
-    const { data: perfil } = await supabase
-      .from("perfis")
-      .select("isadmin")
-      .eq("id", user.id)
-      .single()
-
-    if (!perfil || !perfil.isadmin) {
-      const url = request.nextUrl.clone()
-      url.pathname = "/home"
-      return NextResponse.redirect(url)
-    }
-  }
+  // ─── Proteção de rotas /admin ─────────────────────────────────────────────
+  // Verificação de admin é feita nas próprias pages/layouts do /admin
+  // via getUser() + query no perfis. Não fazemos query de DB no middleware
+  // porque isso causa timeout na Edge da Vercel.
 
   return supabaseResponse
 }
