@@ -85,6 +85,15 @@ export default async function ResultadoPage({ params }: { params: { id: string }
           const blobItens = (resultBlob.itens || []) as ItemOferta[];
           const blobResumo = resultBlob.resumo as Record<string, number> | undefined;
 
+          // Recount classifications from actual items for accurate summary
+          const recounted = { ouro: 0, prata: 0, atencao: 0, descartavel: 0 };
+          for (const it of blobItens) {
+            const cls = it.classificacao;
+            if (cls && recounted[cls as keyof typeof recounted] !== undefined) {
+              recounted[cls as keyof typeof recounted]++;
+            }
+          }
+
           dadosIniciais = {
             analise_id: analise.id,
             fornecedor: (resultBlob.fornecedor as string) || analise.fornecedor || "Fornecedor",
@@ -92,14 +101,14 @@ export default async function ResultadoPage({ params }: { params: { id: string }
             status: analise.status || "pendente",
             resumo: blobResumo ? {
               itens_analisados: blobResumo.itens_analisados || blobItens.length,
-              oportunidades: blobResumo.oportunidades || 0,
-              sem_necessidade: blobResumo.sem_necessidade || 0,
-              revisar: blobResumo.revisar || 0,
+              oportunidades: blobResumo.oportunidades || (recounted.ouro + recounted.prata),
+              sem_necessidade: blobResumo.sem_necessidade || recounted.descartavel,
+              revisar: blobResumo.revisar || recounted.atencao,
             } : {
               itens_analisados: blobItens.length,
-              oportunidades: 0,
-              sem_necessidade: 0,
-              revisar: 0,
+              oportunidades: recounted.ouro + recounted.prata,
+              sem_necessidade: recounted.descartavel,
+              revisar: recounted.atencao,
             },
             itens: blobItens,
             tempo_processamento_ms: analise.tempo_processamento_ms || null,

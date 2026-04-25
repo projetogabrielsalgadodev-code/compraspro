@@ -393,7 +393,6 @@ async def executar_analise_oferta(
     texto_bruto: str,
     empresa_id: str,
     model_id: str | None = None,
-    dados_arquivo: str | None = None,
     rows_arquivo: list[dict] | None = None,
     itens_oferta_arquivo: list[dict] | None = None,
 ) -> tuple[AnaliseOfertaAgnoOutput, dict]:
@@ -409,7 +408,6 @@ async def executar_analise_oferta(
         texto_bruto: Texto bruto da oferta (WhatsApp, colado, etc.)
         empresa_id: ID da empresa do usuário autenticado.
         model_id: Override do modelo Claude (opcional).
-        dados_arquivo: Dados formatados do arquivo (legacy).
         rows_arquivo: Linhas do arquivo de histórico (entradas).
         itens_oferta_arquivo: Itens extraídos diretamente de um arquivo de oferta
                               (XLSX/CSV). Quando presente, pula a extração LLM.

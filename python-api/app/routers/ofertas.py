@@ -88,7 +88,6 @@ async def _executar_e_persistir(
     texto_bruto: str,
     fornecedor_informado: str | None,
     is_async: bool = False,
-    dados_arquivo: str | None = None,
     rows_arquivo: list | None = None,
     itens_oferta_arquivo: list | None = None,
 ) -> OfertaAnalyzeResponse:
@@ -96,7 +95,6 @@ async def _executar_e_persistir(
     resultado_agno, metrics = await executar_analise_oferta(
         texto_bruto=texto_bruto,
         empresa_id=empresa_id,
-        dados_arquivo=dados_arquivo,
         rows_arquivo=rows_arquivo,
         itens_oferta_arquivo=itens_oferta_arquivo,
     )
@@ -154,7 +152,7 @@ async def _executar_e_persistir(
                     descricao_bruta=item.descricao_original,
                     preco_oferta=item.preco_oferta,
                     menor_preco_historico=item.menor_historico,
-                    origem_menor_historico=None,
+                    origem_menor_historico=getattr(item, "origem_menor_historico", None),
                     desconto_percentual=item.variacao_percentual,
                     estoque_item=item.estoque_item,
                     demanda_mes=item.demanda_mes,
@@ -184,7 +182,6 @@ async def _background_analise(
     usuario_id: str | None,
     texto_bruto: str,
     fornecedor_informado: str | None,
-    dados_arquivo: str | None = None,
     rows_arquivo: list | None = None,
     itens_oferta_arquivo: list | None = None,
 ):
@@ -199,7 +196,6 @@ async def _background_analise(
             texto_bruto=texto_bruto,
             fornecedor_informado=fornecedor_informado,
             is_async=True,
-            dados_arquivo=dados_arquivo,
             rows_arquivo=rows_arquivo,
             itens_oferta_arquivo=itens_oferta_arquivo,
         )
@@ -339,7 +335,6 @@ async def analisar_oferta_async_file(
 
     # Parsear arquivo de HISTÓRICO se fonte_dados=arquivo
     rows_arquivo: list | None = None
-    dados_arquivo_str: str | None = None
     file_bytes = None
     if fonte_dados == "arquivo":
         if not arquivo:
@@ -433,7 +428,6 @@ async def analisar_oferta_async_file(
         usuario_id=usuario_id,
         texto_bruto=texto_bruto,
         fornecedor_informado=fornecedor_informado,
-        dados_arquivo=dados_arquivo_str,
         rows_arquivo=rows_arquivo,
         itens_oferta_arquivo=itens_oferta_arquivo,
     )

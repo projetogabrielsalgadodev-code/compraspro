@@ -51,6 +51,10 @@ export async function POST(request: Request) {
       fastapiFormData.append("arquivo_oferta", arquivoOferta, arquivoOferta.name);
     }
 
+    // Timeout: 30s to avoid hanging if FastAPI is slow
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
     const response = await fetch(`${FASTAPI_URL}/api/ofertas/analisar-async-file`, {
       method: "POST",
       headers: {
@@ -61,7 +65,10 @@ export async function POST(request: Request) {
       },
       body: fastapiFormData,
       cache: "no-store",
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorBody = await response.text();

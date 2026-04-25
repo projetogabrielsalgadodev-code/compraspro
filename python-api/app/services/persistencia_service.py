@@ -14,16 +14,34 @@ from app.models.schemas import (
 )
 
 
+import logging as _logging
+
+_ps_logger = _logging.getLogger(__name__)
+
+_PAGE_SIZE = 1000  # Supabase PostgREST default limit
+
+
 # ─── Produtos & Estoque ──────────────────────────────────────────────────────
 
 def buscar_produtos(client: Client, empresa_id: str) -> list[dict[str, Any]]:
-    response = (
-        client.table("produtos")
-        .select("id, ean, descricao, principio_ativo, fabricante, estoque, demanda_mes, curva_abc")
-        .eq("empresa_id", empresa_id)
-        .execute()
-    )
-    return response.data or []
+    """Busca todos os produtos da empresa com paginação automática."""
+    all_rows: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        response = (
+            client.table("produtos")
+            .select("id, ean, descricao, principio_ativo, fabricante, estoque, demanda_mes, curva_abc")
+            .eq("empresa_id", empresa_id)
+            .range(offset, offset + _PAGE_SIZE - 1)
+            .execute()
+        )
+        batch = response.data or []
+        all_rows.extend(batch)
+        if len(batch) < _PAGE_SIZE:
+            break
+        offset += _PAGE_SIZE
+    _ps_logger.info(f"buscar_produtos: {len(all_rows)} produtos carregados para empresa {empresa_id[:8]}...")
+    return all_rows
 
 
 def buscar_produto_por_ean(client: Client, empresa_id: str, ean: str) -> dict[str, Any] | None:
@@ -58,15 +76,25 @@ def buscar_produtos_por_principio_ativo(
 # ─── Histórico de Preços ─────────────────────────────────────────────────────
 
 def buscar_historico(client: Client, empresa_id: str) -> dict[str, list[dict[str, Any]]]:
-    response = (
-        client.table("historico_precos")
-        .select("ean, preco_unitario, fornecedor, data_entrada")
-        .eq("empresa_id", empresa_id)
-        .execute()
-    )
-    data = response.data or []
+    """Busca todo o histórico de preços da empresa com paginação automática."""
+    all_rows: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        response = (
+            client.table("historico_precos")
+            .select("ean, preco_unitario, fornecedor, data_entrada")
+            .eq("empresa_id", empresa_id)
+            .range(offset, offset + _PAGE_SIZE - 1)
+            .execute()
+        )
+        batch = response.data or []
+        all_rows.extend(batch)
+        if len(batch) < _PAGE_SIZE:
+            break
+        offset += _PAGE_SIZE
+    _ps_logger.info(f"buscar_historico: {len(all_rows)} registros carregados para empresa {empresa_id[:8]}...")
     historico: dict[str, list[dict[str, Any]]] = {}
-    for item in data:
+    for item in all_rows:
         historico.setdefault(str(item.get("ean")), []).append(item)
     return historico
 

@@ -33,6 +33,10 @@ export async function POST(request: Request) {
     payload.empresa_id = perfil.empresa_id;
     payload.usuario_id = user.id;
 
+    // Timeout: 30s to avoid hanging if FastAPI is slow
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
     // Autenticação service-to-service: chave interna + empresa_id/user_id via headers
     const response = await fetch(`${FASTAPI_URL}/api/ofertas/analisar-async`, {
       method: "POST",
@@ -44,7 +48,10 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify(payload),
       cache: "no-store",
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorBody = await response.text();
