@@ -238,7 +238,9 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
           storage_path_oferta?: string;
           storage_path_historico?: string;
           nome_arquivo_oferta?: string;
+          tamanho_arquivo_oferta?: number;
           nome_arquivo_historico?: string;
+          tamanho_arquivo_historico?: number;
         } = {};
 
         // Upload arquivo de OFERTA para o Storage
@@ -259,6 +261,7 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
           }
           storagePaths.storage_path_oferta = storagePath;
           storagePaths.nome_arquivo_oferta = arquivoOferta.name;
+          storagePaths.tamanho_arquivo_oferta = arquivoOferta.size;
         }
 
         // Upload arquivo de HISTÓRICO (banco) para o Storage
@@ -279,6 +282,7 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
           }
           storagePaths.storage_path_historico = storagePath;
           storagePaths.nome_arquivo_historico = arquivoBanco.name;
+          storagePaths.tamanho_arquivo_historico = arquivoBanco.size;
         }
 
         // 2. Chamar API leve (JSON, sem arquivos) com os paths do Storage

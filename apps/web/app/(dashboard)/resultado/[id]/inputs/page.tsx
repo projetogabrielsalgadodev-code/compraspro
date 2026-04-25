@@ -24,7 +24,7 @@ export default async function InputsPage({ params }: { params: { id: string } })
 
   const { data: analise, error } = await supabase
     .from("analises_oferta")
-    .select("id, entrada_bruta, fonte_dados, nome_arquivo_historico, tamanho_arquivo_historico, fornecedor, origem, created_at, status, usuario_id, perfis(nome, email)")
+    .select("id, entrada_bruta, fonte_dados, nome_arquivo_historico, tamanho_arquivo_historico, nome_arquivo_oferta, tamanho_arquivo_oferta, fornecedor, origem, created_at, status, usuario_id, perfis(nome, email)")
     .eq("id", analiseId)
     .single();
 
@@ -140,7 +140,7 @@ export default async function InputsPage({ params }: { params: { id: string } })
         </div>
 
         {/* Arquivo histórico (se aplicável) */}
-        {isArquivo && (
+        {analise.nome_arquivo_historico && (
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -150,7 +150,7 @@ export default async function InputsPage({ params }: { params: { id: string } })
                 <div>
                   <p className="ds-eyebrow">Arquivo de histórico enviado</p>
                   <CardTitle className="mt-1 text-xl">
-                    {analise.nome_arquivo_historico || "Arquivo não registrado"}
+                    {analise.nome_arquivo_historico}
                   </CardTitle>
                 </div>
               </div>
@@ -159,11 +159,42 @@ export default async function InputsPage({ params }: { params: { id: string } })
               <div className="ds-subpanel rounded-2xl p-4 flex items-center gap-6">
                 <div>
                   <p className="text-xs text-secondary">Nome do arquivo</p>
-                  <p className="font-medium text-texto">{analise.nome_arquivo_historico || "—"}</p>
+                  <p className="font-medium text-texto">{analise.nome_arquivo_historico}</p>
                 </div>
                 <div>
                   <p className="text-xs text-secondary">Tamanho</p>
                   <p className="font-medium text-texto">{formatBytes(analise.tamanho_arquivo_historico)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Arquivo de oferta (se aplicável) */}
+        {analise.nome_arquivo_oferta && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <span className="ds-icon-chip text-primariaapp">
+                  <FileText className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="ds-eyebrow">Arquivo de oferta enviado</p>
+                  <CardTitle className="mt-1 text-xl">
+                    {analise.nome_arquivo_oferta}
+                  </CardTitle>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="ds-subpanel rounded-2xl p-4 flex items-center gap-6">
+                <div>
+                  <p className="text-xs text-secondary">Nome do arquivo</p>
+                  <p className="font-medium text-texto">{analise.nome_arquivo_oferta}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-secondary">Tamanho</p>
+                  <p className="font-medium text-texto">{formatBytes(analise.tamanho_arquivo_oferta)}</p>
                 </div>
               </div>
             </CardContent>

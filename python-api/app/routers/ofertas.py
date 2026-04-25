@@ -540,7 +540,9 @@ class StorageAnalyzeRequest(BaseModel):
     storage_path_oferta: str | None = None
     storage_path_historico: str | None = None
     nome_arquivo_oferta: str | None = None
+    tamanho_arquivo_oferta: int | None = None
     nome_arquivo_historico: str | None = None
+    tamanho_arquivo_historico: int | None = None
 
 
 
@@ -710,6 +712,9 @@ async def analisar_oferta_via_storage(
             "entrada_bruta": texto_para_persistir,
             "fonte_dados": payload.fonte_dados,
             "nome_arquivo_historico": payload.nome_arquivo_historico,
+            "tamanho_arquivo_historico": payload.tamanho_arquivo_historico,
+            "nome_arquivo_oferta": payload.nome_arquivo_oferta,
+            "tamanho_arquivo_oferta": payload.tamanho_arquivo_oferta,
             "status": "processando",
             "created_at": datetime.now(ZoneInfo("UTC")).isoformat(),
         }).execute()

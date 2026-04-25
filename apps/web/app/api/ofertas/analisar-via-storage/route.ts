@@ -50,7 +50,9 @@ export async function POST(request: Request) {
       storage_path_oferta = null,
       storage_path_historico = null,
       nome_arquivo_oferta = null,
+      tamanho_arquivo_oferta = null,
       nome_arquivo_historico = null,
+      tamanho_arquivo_historico = null,
     } = payload;
 
     // Validar: precisa de texto OU arquivo de oferta
@@ -71,7 +73,9 @@ export async function POST(request: Request) {
       storage_path_oferta,
       storage_path_historico,
       nome_arquivo_oferta,
+      tamanho_arquivo_oferta,
       nome_arquivo_historico,
+      tamanho_arquivo_historico,
     };
 
     // Timeout: 55s (menor que maxDuration para retornar erro legível)
