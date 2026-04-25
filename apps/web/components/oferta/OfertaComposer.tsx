@@ -29,6 +29,10 @@ import { Textarea } from "@/components/ui/textarea";
 
 const EMPRESA_ID_PADRAO = process.env.NEXT_PUBLIC_EMPRESA_ID_PADRAO ?? null;
 
+// Limite de arquivo: 50MB (consistente com o bucket Supabase Storage 'uploads-temp')
+const MAX_FILE_SIZE_MB = 50;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
 type FonteDados = "banco" | "arquivo";
 
 interface OfertaComposerProps {
@@ -239,6 +243,9 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
 
         // Upload arquivo de OFERTA para o Storage
         if (arquivoOferta) {
+          if (arquivoOferta.size > MAX_FILE_SIZE_BYTES) {
+            throw new Error(`O arquivo de oferta excede o limite de ${MAX_FILE_SIZE_MB}MB. Tamanho: ${(arquivoOferta.size / 1024 / 1024).toFixed(1)}MB.`);
+          }
           const ext = arquivoOferta.name.split(".").pop() || "xlsx";
           const storagePath = `${user.id}/${uploadId}/oferta.${ext}`;
           const { error: uploadErr } = await supabase.storage
@@ -256,6 +263,9 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
 
         // Upload arquivo de HISTÓRICO (banco) para o Storage
         if (arquivoBanco && fonteDados === "arquivo") {
+          if (arquivoBanco.size > MAX_FILE_SIZE_BYTES) {
+            throw new Error(`O arquivo de histórico excede o limite de ${MAX_FILE_SIZE_MB}MB. Tamanho: ${(arquivoBanco.size / 1024 / 1024).toFixed(1)}MB.`);
+          }
           const ext = arquivoBanco.name.split(".").pop() || "xlsx";
           const storagePath = `${user.id}/${uploadId}/historico.${ext}`;
           const { error: uploadErr } = await supabase.storage
@@ -509,11 +519,20 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
                         type="file"
                         accept=".csv,.xlsx,.xls"
                         className="sr-only"
-                        onChange={(event) => setArquivoOferta(event.target.files?.[0] ?? null)}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          if (file && file.size > MAX_FILE_SIZE_BYTES) {
+                            setErroMsg(`O arquivo de oferta excede o limite de ${MAX_FILE_SIZE_MB}MB. Tamanho: ${(file.size / 1024 / 1024).toFixed(1)}MB.`);
+                            setModal("erro");
+                            event.target.value = "";
+                            return;
+                          }
+                          setArquivoOferta(file);
+                        }}
                       />
                       <FileUp className="mx-auto h-5 w-5 text-primariaapp" />
                       <p className="mt-2 text-xs font-medium text-texto">Selecionar arquivo de oferta</p>
-                      <p className="mt-1 text-[10px] text-secondary">XLSX, CSV</p>
+                      <p className="mt-1 text-[10px] text-secondary">XLSX, CSV — Máx. {MAX_FILE_SIZE_MB}MB</p>
                     </label>
                   )}
                 </div>

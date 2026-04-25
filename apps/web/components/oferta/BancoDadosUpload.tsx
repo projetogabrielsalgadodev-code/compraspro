@@ -1,8 +1,13 @@
 "use client";
 
-import { CheckCircle2, FileSpreadsheet, FolderUp, X } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, CheckCircle2, FileSpreadsheet, FolderUp, X } from "lucide-react";
 
 const FORMATOS_SUPORTADOS = ".csv,.xlsx,.xls,.xml,.txt,.zip";
+
+// Limite de arquivo: 50MB (consistente com o bucket Supabase Storage 'uploads-temp')
+const MAX_FILE_SIZE_MB = 50;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface BancoDadosUploadProps {
   arquivo: File | null;
@@ -22,6 +27,7 @@ export function BancoDadosUpload({
   descricao = "Importe a base em CSV, XLSX, XLS, XML, TXT, ZIP ou outros formatos comuns de exportacao."
 }: BancoDadosUploadProps) {
   const somenteVisual = !onArquivoChange;
+  const [sizeError, setSizeError] = useState<string | null>(null);
 
   return (
     <div className="ds-subpanel rounded-[24px] p-4 sm:p-5">
@@ -65,12 +71,28 @@ export function BancoDadosUpload({
               accept={FORMATOS_SUPORTADOS}
               className="sr-only"
               disabled={somenteVisual}
-              onChange={(event) => onArquivoChange?.(event.target.files?.[0] ?? null)}
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                if (file && file.size > MAX_FILE_SIZE_BYTES) {
+                  setSizeError(`O arquivo excede o limite de ${MAX_FILE_SIZE_MB}MB. Tamanho: ${(file.size / 1024 / 1024).toFixed(1)}MB.`);
+                  event.target.value = "";
+                  return;
+                }
+                setSizeError(null);
+                onArquivoChange?.(file);
+              }}
             />
             <FolderUp className="mx-auto h-6 w-6 text-primariaapp" />
             <p className="mt-3 text-sm font-semibold text-texto">{somenteVisual ? "Visualizar area de importacao" : "Selecionar arquivo do banco de dados"}</p>
-            <p className="mt-1 text-xs text-secondary">Formatos aceitos: CSV, XLSX, XLS, XML, TXT e ZIP.</p>
+            <p className="mt-1 text-xs text-secondary">Formatos aceitos: CSV, XLSX, XLS, XML, TXT e ZIP. Máx. {MAX_FILE_SIZE_MB}MB.</p>
           </label>
+
+          {sizeError && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
+              <p className="text-xs text-red-400">{sizeError}</p>
+            </div>
+          )}
 
           {arquivo ? (
             <div className="mt-4 flex items-center justify-between gap-3 rounded-[20px] border border-app bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgb(var(--bg-input) / 0.92))] px-4 py-3">
