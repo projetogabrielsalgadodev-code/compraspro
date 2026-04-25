@@ -32,18 +32,25 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresh session (obrigatório para Server Components)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
   const { pathname } = request.nextUrl
 
   const isAuthRoute = pathname.startsWith("/auth")
   const isApiRoute = pathname.startsWith("/api")
   const isPublicAsset =
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon")
+    pathname.startsWith("/favicon") ||
+    pathname.includes(".")
+
+  // Otimização de performance: Não chamar getUser (network request) para assets ou APIs
+  // APIs cuidam da própria autenticação internamente.
+  if (isPublicAsset || isApiRoute) {
+    return supabaseResponse
+  }
+
+  // Refresh session (obrigatório para Server Components) e validação segura
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   // Verifica se é uma rota /auth que permite usuários autenticados
   const isAuthRouteAllowAuthenticated = AUTH_ROUTES_ALLOW_AUTHENTICATED.some(
