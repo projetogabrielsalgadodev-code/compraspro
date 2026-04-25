@@ -324,7 +324,7 @@ export function ResultadoAnaliseClient({ analiseId, dadosIniciais }: { analiseId
               </span>
             </div>
           )}
-          {dados.tokens_utilizados != null && dados.tokens_utilizados > 0 && (
+          {dados.tokens_utilizados != null && (
             <div className="flex items-center gap-2">
               <Cpu className="h-4 w-4 text-primariaapp" />
               <span className="text-sm text-secondary">Tokens utilizados:</span>
@@ -333,7 +333,7 @@ export function ResultadoAnaliseClient({ analiseId, dadosIniciais }: { analiseId
               </span>
             </div>
           )}
-          {dados.custo_reais != null && dados.custo_reais > 0 && (
+          {dados.custo_reais != null && (
             <div className="flex items-center gap-2">
               <Coins className="h-4 w-4 text-primariaapp" />
               <span className="text-sm text-secondary">Custo da análise:</span>
