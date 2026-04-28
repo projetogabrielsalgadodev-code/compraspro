@@ -310,24 +310,31 @@ def _limpar_descricao(desc: str) -> str:
 def _parse_preco_br(texto: str) -> float | None:
     """Parseia preco em formato brasileiro: 24,17 ou 24.17 ou 1.234,56 ou 15.1905"""
     texto = texto.strip().replace(" ", "")
+    result: float | None = None
     # Brazilian thousands format: 1.234,56
-    m = re.match(r"(\d{1,3}(?:\.\d{3})*,\d{2,})$", texto)
+    m = re.match(r"(\d{1,3}(?:\.\d{3})*,\d{2,4})$", texto)
     if m:
-        return float(m.group(1).replace(".", "").replace(",", "."))
-    # Simple comma decimal: 24,17 or 24,1705
-    m = re.match(r"(\d+,\d{2,})$", texto)
-    if m:
-        return float(m.group(1).replace(",", "."))
-    # English dot decimal: 24.17 or 15.1905
-    m = re.match(r"(\d+\.\d+)$", texto)
-    if m:
-        return float(m.group(1))
-    # Integer
-    m = re.match(r"(\d+)$", texto)
-    if m:
-        val = float(m.group(1))
-        return val if val > 0 else None
-    return None
+        result = float(m.group(1).replace(".", "").replace(",", "."))
+    if result is None:
+        # Simple comma decimal: 24,17 (max 4 decimals)
+        m = re.match(r"(\d+,\d{2,4})$", texto)
+        if m:
+            result = float(m.group(1).replace(",", "."))
+    if result is None:
+        # English dot decimal: 24.17 or 15.1905 (max 4 decimals)
+        m = re.match(r"(\d+\.\d{2,4})$", texto)
+        if m:
+            result = float(m.group(1))
+    if result is None:
+        # Integer
+        m = re.match(r"(\d+)$", texto)
+        if m:
+            val = float(m.group(1))
+            result = val if val > 0 else None
+    # Bug 10: Validacao de range — rejeitar precos impossiveis para farmaceuticos
+    if result is not None and (result <= 0 or result > 50_000):
+        return None
+    return result
 
 def _classificar_forma_farmaceutica(desc: str) -> str:
     """

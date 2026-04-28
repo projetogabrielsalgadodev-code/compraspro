@@ -499,7 +499,15 @@ export function ResultadoAnaliseClient({ analiseId, dadosIniciais }: { analiseId
                     </td>
                     <td className="py-3 pr-4">
                       <div className="flex flex-col">
-                        <span>{formatarMoeda(item.preco_oferta)}</span>
+                        {item.preco_oferta != null ? (
+                          <span>{formatarMoeda(item.preco_oferta)}</span>
+                        ) : item.tipo_preco === "percentual_desconto" && item.desconto_percentual ? (
+                          <span className="inline-flex items-center rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs font-medium text-emerald-400">
+                            {item.desconto_percentual}% desc.
+                          </span>
+                        ) : (
+                          <span>--</span>
+                        )}
                         {item.multiplicador_embalagem && item.multiplicador_embalagem > 1 && item.preco_oferta_caixa ? (
                           <span className="text-[10px] text-texto/50" title={`Preço por caixa c/${item.multiplicador_embalagem} unidades`}>
                             {formatarMoeda(item.preco_oferta_caixa)}/cx

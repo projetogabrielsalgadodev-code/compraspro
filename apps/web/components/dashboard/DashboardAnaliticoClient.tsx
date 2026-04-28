@@ -59,13 +59,13 @@ export function DashboardAnaliticoClient({
 
     const investimentoTotal = itens.reduce((sum, i) => {
       const qtde = i.sugestao_pedido ?? 0;
-      return sum + i.preco_oferta * qtde;
+      return sum + (i.preco_oferta ?? 0) * qtde;
     }, 0);
 
     const economiaPotencial = itens.reduce((sum, i) => {
       if (i.variacao_percentual != null && i.variacao_percentual > 0 && i.menor_historico) {
         const qtde = i.sugestao_pedido ?? 0;
-        return sum + (i.menor_historico - i.preco_oferta) * qtde;
+        return sum + (i.menor_historico - (i.preco_oferta ?? 0)) * qtde;
       }
       return sum;
     }, 0);

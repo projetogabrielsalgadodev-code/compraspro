@@ -492,6 +492,7 @@ def buscar_equivalentes(
             "media_preco": stats["media_preco"],
             "qtd_entradas": stats["qtd_entradas"],
             "demanda_mes": _calcular_demanda_mes(stats),
+            "estoque_item": stats.get("estoque_item", 0),
         })
 
     return equivalentes
@@ -749,6 +750,17 @@ def executar_analise_deterministico(
         if match:
             menor_hist = match["menor_preco"]
             origem_menor = "="
+
+            # Bug 8: Log para diagnóstico de discrepância de multiplicadores
+            if multiplicador_embalagem > 1:
+                from app.services.offer_extractor import extrair_multiplicador_inteligente
+                mult_historico = extrair_multiplicador_inteligente(match["descricao_arquivo"])
+                if mult_historico != multiplicador_embalagem:
+                    logger.warning(
+                        f"MULT DISCREPANCIA: oferta mult={multiplicador_embalagem} vs "
+                        f"historico mult={mult_historico} | "
+                        f"oferta='{descricao[:50]}' historico='{match['descricao_arquivo'][:50]}'"
+                    )
 
             # 2. BUSCAR EQUIVALENTES pelo EAN que deu match (usando descricao do arquivo)
             equivalentes = buscar_equivalentes(

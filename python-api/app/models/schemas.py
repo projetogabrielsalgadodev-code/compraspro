@@ -74,7 +74,9 @@ class ItemOfertaResponse(BaseModel):
     ean: str | None = None
     descricao_original: str
     descricao_produto: str | None = None
-    preco_oferta: float
+    preco_oferta: float | None = None
+    preco_oferta_caixa: float | None = None
+    multiplicador_embalagem: float | None = None
     menor_historico: float = 0.0
     origem_menor_historico: str | None = None
     variacao_percentual: float = 0.0
@@ -85,6 +87,8 @@ class ItemOfertaResponse(BaseModel):
     classificacao: ClassificacaoOferta
     confianca_match: ConfiancaMatch
     recomendacao: str
+    tipo_preco: str | None = None
+    desconto_percentual: float | None = None
     equivalente_detalhes: list[EquivalenteResumo] = Field(default_factory=list)
     historico_menores: list[HistoricoPrecoResumo] = Field(default_factory=list)
     historico_maiores: list[HistoricoPrecoResumo] = Field(default_factory=list)

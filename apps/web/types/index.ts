@@ -12,7 +12,7 @@ export interface ItemOferta {
   ean?: string | null;
   descricao_original: string;
   descricao_produto?: string | null;
-  preco_oferta: number;
+  preco_oferta?: number | null;
   preco_oferta_caixa?: number | null;
   multiplicador_embalagem?: number | null;
   classificacao: ClassificacaoOferta;
@@ -26,6 +26,8 @@ export interface ItemOferta {
   sugestao_pedido?: number | null;
   estoque_equivalentes?: number | null;
   equivalente_detalhes?: EquivalenteResumo[];
+  tipo_preco?: string | null;
+  desconto_percentual?: number | null;
 }
 
 export interface ResumoAnaliseOferta {
