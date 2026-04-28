@@ -354,7 +354,7 @@ def _classificar_forma_farmaceutica(desc: str) -> str:
     liquido_markers = [
         "XAROPE", "XPE ", "XPE.", "XAROPE",
         "SOL NASAL", "SOL ORAL", "SOL ", "SOLUCAO", "SOLUÇÃO",
-        "SUSP ", "SUSPENSAO", "SUSPENSÃO", "SUS-",
+        "SUSP ", "SUSP.", "SUSPENSAO", "SUSPENSÃO", "SUS-", "SUS ", "SUS.",
         "GTS ", "GOTAS", " GTS",
         "SPRAY", "COLIRI", "COLIRIO",
         "ELIXIR", "FLAC ",

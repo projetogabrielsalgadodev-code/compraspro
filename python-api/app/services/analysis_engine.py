@@ -306,7 +306,13 @@ def _match_item_no_arquivo(
                     candidate_combined.add(w_lower)
         all_candidate_tokens = best_desc_tokens | candidate_combined
 
-        common_drug_tokens = drug_tokens & all_candidate_tokens
+        # Prefix-aware intersection for common_drug_tokens
+        common_drug_tokens = set()
+        for dt in drug_tokens:
+            for ct in all_candidate_tokens:
+                if dt.startswith(ct) or ct.startswith(dt):
+                    common_drug_tokens.add(dt)
+                    break
 
         if not common_drug_tokens and best_score < 10:
             continue
@@ -316,7 +322,16 @@ def _match_item_no_arquivo(
         # - "AMOX+CLAV" matching "LANSOPRAZOL+AMOX" (missing CLAV)
         # - "CEFUROXIMA" matching "CEFALEXINA" (different molecule)
         if primary_tokens:
-            missing_primary = primary_tokens - all_candidate_tokens
+            missing_primary = set()
+            for pt in primary_tokens:
+                matched = False
+                for ct in all_candidate_tokens:
+                    if pt.startswith(ct) or ct.startswith(pt):
+                        matched = True
+                        break
+                if not matched:
+                    missing_primary.add(pt)
+            
             if missing_primary:
                 # If more than 30% of primary tokens are missing, reject
                 missing_ratio = len(missing_primary) / len(primary_tokens)
@@ -839,12 +854,15 @@ def executar_analise_deterministico(
             sugestao = calcular_sugestao_pedido(demanda, estoque=estoque_item)
             classificacao = classificar_oferta(variacao)
 
-            # 5. RECOMENDACAO POR TEMPLATE
+            # Re-scale history to match the offer's packaging for the UI
+            menor_hist_caixa = round(menor_hist * multiplicador_embalagem, 4) if menor_hist else None
+
+            # 5. RECOMENDACAO POR TEMPLATE (usando os valores em escala de caixa para exibicao coerente)
             recomendacao = gerar_recomendacao(
                 classificacao=classificacao,
                 variacao=variacao,
-                menor_historico=menor_hist,
-                preco_oferta=preco_efetivo,
+                menor_historico=menor_hist_caixa,
+                preco_oferta=preco_oferta_original,
                 demanda_mes=demanda,
                 sugestao_pedido=sugestao,
                 descricao=descricao,
@@ -856,14 +874,26 @@ def executar_analise_deterministico(
 
             estoque_equiv = sum(eq.get("estoque_item", 0) for eq in equivalentes)
 
+            # Re-scale history to match the offer's packaging for the UI
+            menor_hist_caixa = round(menor_hist * multiplicador_embalagem, 4) if menor_hist else None
+
+            # Re-scale equivalentes
+            for eq in equivalentes:
+                if eq.get("menor_preco"):
+                    eq["menor_preco"] = round(eq["menor_preco"] * multiplicador_embalagem, 4)
+                if eq.get("media_preco"):
+                    eq["media_preco"] = round(eq["media_preco"] * multiplicador_embalagem, 4)
+                if eq.get("maior_preco"):
+                    eq["maior_preco"] = round(eq["maior_preco"] * multiplicador_embalagem, 4)
+
             itens_resultado.append({
                 "descricao_original": descricao,
-                "preco_oferta": preco_efetivo,
+                "preco_oferta": preco_oferta_original,  # Mantem preço original da caixa
                 "preco_oferta_caixa": preco_oferta_original,
                 "multiplicador_embalagem": multiplicador_embalagem,
                 "ean": match["ean"],
                 "descricao_produto": match["descricao_arquivo"],
-                "menor_historico": menor_hist,
+                "menor_historico": menor_hist_caixa,  # Histórico escalado para o mesmo multiplicador
                 "variacao_percentual": variacao,
                 "estoque_item": estoque_item,
                 "demanda_mes": demanda,
@@ -906,11 +936,14 @@ def executar_analise_deterministico(
                 variacao = calcular_variacao_percentual(menor_hist_equiv, preco_oferta)
                 classificacao = classificar_oferta(variacao)
 
+            # Re-scale history to match the offer's packaging for the UI
+            menor_hist_equiv_caixa = round(menor_hist_equiv * multiplicador_embalagem, 4) if menor_hist_equiv else None
+
             recomendacao = gerar_recomendacao(
                 classificacao=classificacao if menor_hist_equiv else "descartavel",
                 variacao=variacao,
-                menor_historico=menor_hist_equiv,
-                preco_oferta=preco_oferta,
+                menor_historico=menor_hist_equiv_caixa,
+                preco_oferta=preco_oferta_original,
                 demanda_mes=0,
                 sugestao_pedido=0,
                 descricao=descricao,
@@ -920,14 +953,23 @@ def executar_analise_deterministico(
                 desconto_percentual=desconto_pct,
             )
 
+            # Re-scale equivalentes
+            for eq in equivalentes:
+                if eq.get("menor_preco"):
+                    eq["menor_preco"] = round(eq["menor_preco"] * multiplicador_embalagem, 4)
+                if eq.get("media_preco"):
+                    eq["media_preco"] = round(eq["media_preco"] * multiplicador_embalagem, 4)
+                if eq.get("maior_preco"):
+                    eq["maior_preco"] = round(eq["maior_preco"] * multiplicador_embalagem, 4)
+
             itens_resultado.append({
                 "descricao_original": descricao,
-                "preco_oferta": preco_oferta,
+                "preco_oferta": preco_oferta_original,
                 "preco_oferta_caixa": preco_oferta_original,
                 "multiplicador_embalagem": multiplicador_embalagem,
                 "ean": None,
                 "descricao_produto": None,
-                "menor_historico": menor_hist_equiv,
+                "menor_historico": menor_hist_equiv_caixa,
                 "variacao_percentual": variacao,
                 "estoque_item": 0,
                 "demanda_mes": 0,
