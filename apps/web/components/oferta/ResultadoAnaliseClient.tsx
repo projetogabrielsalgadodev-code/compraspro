@@ -266,7 +266,8 @@ export function ResultadoAnaliseClient({ analiseId, dadosIniciais }: { analiseId
            const nome = item.descricao_produto ?? item.descricao_original;
            // If suggestion is 0 but user selected it, default to 1 so order makes sense
            const qtde = item.sugestao_pedido && item.sugestao_pedido > 0 ? item.sugestao_pedido : 1;
-           const preco = formatarMoeda(item.preco_oferta);
+           // Use box price for supplier communication (they work with box prices)
+           const preco = formatarMoeda(item.preco_oferta_caixa ?? item.preco_oferta);
            mensagem += `- ${nome} | Qtd: ${qtde} | Preço: ${preco}\n`;
        });
        
@@ -496,7 +497,16 @@ export function ResultadoAnaliseClient({ analiseId, dadosIniciais }: { analiseId
                          )}
                       </div>
                     </td>
-                    <td className="py-3 pr-4">{formatarMoeda(item.preco_oferta)}</td>
+                    <td className="py-3 pr-4">
+                      <div className="flex flex-col">
+                        <span>{formatarMoeda(item.preco_oferta)}</span>
+                        {item.multiplicador_embalagem && item.multiplicador_embalagem > 1 && item.preco_oferta_caixa ? (
+                          <span className="text-[10px] text-texto/50" title={`Preço por caixa c/${item.multiplicador_embalagem} unidades`}>
+                            {formatarMoeda(item.preco_oferta_caixa)}/cx
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="py-3 pr-4">{item.menor_historico ? formatarMoeda(item.menor_historico) : "--"} {item.origem_menor_historico ?? ""}</td>
                     {/* C-28: Variação colorida por status */}
                     <td className={`py-3 pr-4 ${corVariacaoTabela(item.variacao_percentual)}`}>{formatarPercentual(item.variacao_percentual)}</td>

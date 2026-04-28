@@ -1,0 +1,535 @@
+﻿====================================================================================================
+STEP 1: Fetching analysis d8137b11-3ab5-477e-8a78-8526719a3dd3 from database...
+====================================================================================================
+Status: concluida
+Created: 2026-04-15T17:59:33.762039-03:00
+DB Items count: 48
+
+--- DB Items ---
+   1. Acetilciste├¡na 600 mg                              | oferta=13.41 | menor=23.1 | var=41.95% | ouro | medio | match=NAC ACETILCISTEINA 600 MG NA DOSE 60 CAPS
+   2. Amoxicilina + Clavulanato 875/125 mg 14 com        | oferta=28.57 | menor=1.8914 | var=-1410.52% | descartavel | medio | match=AMOXICILINA+CLAV POTASSIO 875+125MG CX 14 COMP REV
+   3. Duloxetina 60 mg                                   | oferta=36.0 | menor=0.9381 | var=-3737.54% | descartavel | medio | match=CLOR DULOXETINA 60MG 30CP C1 EUR-GENERICO
+   4. Tramadol 100 mg                                    | oferta=34.18 | menor=0.4323 | var=-7806.55% | descartavel | medio | match=CLOR TRAMADOL +PARACETAMOL 37,5+325MG 10CPR
+   5. Duloxetina 30 mg                                   | oferta=22.4 | menor=0.9293 | var=-2310.42% | descartavel | medio | match=CLOR DULOXETINA 30MG C/30 CAP
+   6. Dicloridrato de Hidroxizina 25 mg                  | oferta=24.17 | menor=0.2343 | var=-10215.83% | descartavel | alto | match=DICLORIDRATO DE HIDROXIZINA 25MG CX 30 COMP
+   7. Nitazoxanida 500 mg                                | oferta=9.58 | menor=1.5522 | var=-517.19% | descartavel | medio | match=NITAZOXANIDA 500MG 6CPR
+   8. Olmesartana + Anlodipino 40/5 mg                   | oferta=24.54 | menor=0.6379 | var=-3747.0% | descartavel | alto | match=OLMESARTANA+ANLODIPINO 20+5MG C/30 CP
+   9. Paracetamol + Pseudoefedrina 500/30 mg             | oferta=9.37 | menor=0.613 | var=-1428.55% | descartavel | alto | match=PARACETAMOL+ CLOR PSEUDOEFEDRINA
+  10. Prednisona 20 mg                                   | oferta=2.21 | menor=0.252 | var=-776.98% | descartavel | medio | match=PREDNISONA 20MG CX 10 COMP
+  11. Pregabalina 75 mg                                  | oferta=4.24 | menor=5.768 | var=26.49% | ouro | medio | match=PREGABALINA 75MG CX 30 CAP GEL DURA
+  12. Trometamol Cetorolaco 10 mg Sublingual             | oferta=3.75 | menor=0.4188 | var=-795.42% | descartavel | alto | match=TROMETAMOL+CETOROLACO 10MG C/10 SL BIO
+  13. Amoxi clavi 400 Mg suspens├úo                       | oferta=13.45 | menor=0.0 | var=0.0% | descartavel | baixo | match=None
+  14. Bilastina 20/30                                    | oferta=26.45 | menor=1.1182 | var=-2265.41% | descartavel | medio | match=BILASTINA 20MG GEN 30 CPR- EURO = TYNNA E ALEKTOS
+  15. Ondasetrona 4 Mg                                   | oferta=3.17 | menor=0.0 | var=0.0% | descartavel | baixo | match=None
+  16. Ondasetrona 8 Mg                                   | oferta=5.55 | menor=0.0 | var=0.0% | descartavel | baixo | match=None
+  17. Hidroxizina 25/30                                  | oferta=23.14 | menor=0.6802 | var=-3301.94% | descartavel | medio | match=DICLOR HIDROXIZINA 25MG CX 30 COMP
+  18. Mesalazina 800/30                                  | oferta=56.65 | menor=1.7294 | var=-3175.7% | descartavel | medio | match=MESALAZINA 400MG CX 30 COMP REV
+  19. Levetiracetam 250/30                               | oferta=16.64 | menor=1.8219 | var=-813.33% | descartavel | medio | match=LEVETIRACETAM 750MG C/30 COMP
+  20. Olmesartana 20 Mg                                  | oferta=10.97 | menor=0.6379 | var=-1619.71% | descartavel | medio | match=OLMESARTANA+ANLODIPINO 20+5MG C/30 CP
+  21. Olmesartana 40 Mg                                  | oferta=13.6 | menor=0.4743 | var=-2767.38% | descartavel | medio | match=OLMESARTANA+HCT 20MG+12,5MG CX 30 C
+  22. Olmesartana hct 20/12,5                            | oferta=17.75 | menor=0.4743 | var=-3642.36% | descartavel | medio | match=OLMESARTANA+HCT 20MG+12,5MG CX 30 C
+  23. Olmesartana hct 40/12,5                            | oferta=19.67 | menor=0.4743 | var=-4047.16% | descartavel | medio | match=OLMESARTANA+HCT 20MG+12,5MG CX 30 C
+  24. Olmesartana hct 40/25                              | oferta=18.01 | menor=0.4743 | var=-3697.17% | descartavel | medio | match=OLMESARTANA+HCT 20MG+12,5MG CX 30 C
+  25. Clotrimazol vag 10 Mg C/6 aplic                    | oferta=2.59 | menor=209.81 | var=98.77% | ouro | medio | match=MOUNJARO 5MG INJ +4CAN APLIC
+  26. Clotrimazol vag 20 Mg C/3 aplic                    | oferta=5.2733 | menor=209.81 | var=97.49% | ouro | medio | match=MOUNJARO 5MG INJ +4CAN APLIC
+  27. Trimetazidina 35 Mg/60                             | oferta=27.43 | menor=0.4754 | var=-5669.88% | descartavel | medio | match=TRIMETAZIDINA GN 35MG 60CPR EU
+  28. Certo beta neo CR                                  | oferta=6.99 | menor=15.85 | var=55.9% | ouro | medio | match=C4 BETA PUMP PRE WORKOUT ACAI C/GUARANA 225G
+  29. Tansulosina C/60                                   | oferta=0.8695 | menor=0.6645 | var=-30.85% | descartavel | medio | match=TANSULOSINA 0,4MG C/60 CP (+) GERMED
+  30. Desvenlaflaxina 100/30                             | oferta=25.81 | menor=0.0 | var=0.0% | descartavel | baixo | match=None
+  31. BENEGRIP                                           | oferta=0.15 | menor=0.2115 | var=29.08% | ouro | medio | match=GRIPINEW C/20 COMP = BENEGRIP
+  32. BIOTONICO                                          | oferta=14.53 | menor=17.0996 | var=15.03% | prata | medio | match=BIOTONICO FONTOURA ORIGINAL 400ML
+  33. BUSCOFEM                                           | oferta=2.78 | menor=3.47 | var=19.88% | prata | medio | match=IBUPRIL 400MG COM 8 CPS GEL - BUSCOFEM
+  34. BUSCOPAN                                           | oferta=0.71 | menor=0.8297 | var=14.43% | prata | medio | match=BUSCOPAN COMPOSTO GOT 20ML HYP
+  35. CORISTINA                                          | oferta=1.04 | menor=1.5577 | var=33.23% | ouro | medio | match=CORISTINA D PRO 8CPR SN
+  36. ENGOV                                              | oferta=3.7 | menor=5.2858 | var=30.0% | ouro | medio | match=ENGOV AFTER CITRUS FR 250ML-DEMAIS PROD
+  37. ENGOV AFTER                                        | oferta=3.96 | menor=5.2858 | var=25.08% | ouro | alto | match=ENGOV AFTER CITRUS FR 250ML-DEMAIS PROD
+  38. ENGOV UP                                           | oferta=2.64 | menor=5.2858 | var=50.05% | ouro | medio | match=ENGOV AFTER CITRUS FR 250ML-DEMAIS PROD
+  39. EPOCLER                                            | oferta=0.19 | menor=0.2555 | var=25.64% | ouro | medio | match=EPOCLER TODO DIA C/30 COMP
+  40. ESTOMAZIL                                          | oferta=1.6 | menor=1.8557 | var=13.78% | prata | medio | match=ESTOMAZIL S/SABOR 50ENV 5G
+  41. GASTROL                                            | oferta=0.25 | menor=0.3519 | var=28.96% | ouro | medio | match=GASTROL 37+47+35,6MG CX 20 PAST MAST
+  42. LACTO PURGA                                        | oferta=0.4 | menor=0.4759 | var=15.95% | prata | alto | match=LACTO-PURGA C/6
+  43. NEBACETIN                                          | oferta=12.78 | menor=15.97 | var=19.97% | prata | medio | match=NEBACETIN POM BG 15G
+  44. NEOSALDINA                                         | oferta=0.24 | menor=0.3234 | var=25.79% | ouro | medio | match=DORALGINA C/20 = NEOSALDINA
+  45. NEOSALDINA MUSCULAR                                | oferta=0.3 | menor=0.4346 | var=30.97% | ouro | alto | match=NEOSALDINA MUSCULAR 20CPR
+  46. POLARAMINE                                         | oferta=0.73 | menor=0.9751 | var=25.14% | ouro | medio | match=POLARAMINE 2MG CX 20 COMP
+  47. APRACUR                                            | oferta=0.24 | menor=0.3433 | var=30.09% | ouro | medio | match=APRACUR C/6
+  48. DORIL                                              | oferta=1.04 | menor=1.4407 | var=27.81% | ouro | medio | match=DORIL ENXAQUECA C/4 - 250+250+65MG COMP REV
+
+====================================================================================================
+STEP 2: Running LOCAL analysis...
+python : LLM retornou JSON invalido: {
+No linha:1 caractere:32
++ ... env:PYTHONIOENCODING='utf-8'; python compare_d8137b11.py 2>&1 | Out-F ...
++                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (LLM retornou JSON invalido: {:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  "fornecedor": "Germed",
+  "itens": [
+    {
+      "descricao": "Acetilcisteina 600 mg",
+      "preco": 13.41,
+      "ean": null,
+      "tipo_preco": "absoluto",
+      "desconto_percentual": null,
+      "multiplicador_embalagem": 1
+    },
+    {
+      "descricao": "Amoxicilina + Clavulanato 875/125 mg 14 com",
+      "preco": 28.57,
+      "ean": null,
+      "tipo_preco": "absoluto",
+      "desconto_percentual": null,
+      "multiplicador_embalagem": 14
+    },
+    {
+      "descricao": "Duloxetina
+====================================================================================================
+File parsed: 45762 rows
+Extracted: 39 items, fornecedor=None
+
+--- Itens extraidos (LLM) ---
+   1. Acetilcisteina 600 mg                              | preco=13.41 | mult=1.0 | tipo=absoluto | desc_pct=None
+   2. Amoxicilina + Clavulanato 875/125 mg 14 com        | preco=28.57 | mult=1.0 | tipo=absoluto | desc_pct=None
+   3. Duloxetina 60 mg                                   | preco=36.0 | mult=1.0 | tipo=absoluto | desc_pct=None
+   4. Tramadol 100 mg                                    | preco=34.18 | mult=1.0 | tipo=absoluto | desc_pct=None
+   5. Duloxetina 30 mg                                   | preco=22.4 | mult=1.0 | tipo=absoluto | desc_pct=None
+   6. Dicloridrato de Hidroxizina 25 mg                  | preco=24.17 | mult=1.0 | tipo=absoluto | desc_pct=None
+   7. Nitazoxanida 500 mg                                | preco=9.58 | mult=1.0 | tipo=absoluto | desc_pct=None
+   8. Olmesartana + Anlodipino 40/5 mg                   | preco=24.54 | mult=1.0 | tipo=absoluto | desc_pct=None
+   9. Paracetamol + Pseudoefedrina 500/30 mg             | preco=9.37 | mult=1.0 | tipo=absoluto | desc_pct=None
+  10. Prednisona 20 mg                                   | preco=2.21 | mult=1.0 | tipo=absoluto | desc_pct=None
+  11. Pregabalina 75 mg                                  | preco=4.24 | mult=1.0 | tipo=absoluto | desc_pct=None
+  12. Trometamol Cetorolaco 10 mg Sublingual             | preco=3.75 | mult=1.0 | tipo=absoluto | desc_pct=None
+  13. 4 Mg                                               | preco=3.17 | mult=1.0 | tipo=absoluto | desc_pct=None
+  14. 8 Mg                                               | preco=5.55 | mult=1.0 | tipo=absoluto | desc_pct=None
+  15. 20 Mg                                              | preco=10.97 | mult=1.0 | tipo=absoluto | desc_pct=None
+  16. 40 Mg                                              | preco=13.6 | mult=1.0 | tipo=absoluto | desc_pct=None
+  17. 20/12,5                                            | preco=17.75 | mult=1.0 | tipo=absoluto | desc_pct=None
+  18. 40/12,5                                            | preco=19.67 | mult=1.0 | tipo=absoluto | desc_pct=None
+  19. 40/25                                              | preco=18.01 | mult=1.0 | tipo=absoluto | desc_pct=None
+  20. 10 Mg C/6 aplic                                    | preco=15.54 | mult=6.0 | tipo=absoluto | desc_pct=None
+  21. 20 Mg C/3 aplic                                    | preco=15.82 | mult=3.0 | tipo=absoluto | desc_pct=None
+  22. BENEGRIP                                           | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=30.0
+  23. BIOTONICO                                          | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=15.0
+  24. BUSCOFEM                                           | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=20.0
+  25. BUSCOPAN                                           | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=15.0
+  26. CORISTINA                                          | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=33.0
+  27. ENGOV                                              | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=30.0
+  28. ENGOV AFTER                                        | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=25.0
+  29. ENGOV UP                                           | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=50.0
+  30. EPOCLER                                            | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=25.0
+  31. ESTOMAZIL                                          | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=14.0
+  32. GASTROL                                            | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=30.0
+  33. LACTO PURGA                                        | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=15.0
+  34. NEBACETIN                                          | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=20.0
+  35. NEOSALDINA                                         | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=26.0
+  36. NEOSALDINA MUSCULAR                                | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=30.0
+  37. POLARAMINE                                         | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=25.0
+  38. APRACUR                                            | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=30.0
+  39. DORIL                                              | preco=None | mult=1.0 | tipo=percentual_desconto | desc_pct=28.0
+
+Index: 9057 EANs, 7783 tokens
+Local items: 39
+
+--- LOCAL Items ---
+   1. Acetilcisteina 600 mg                              | oferta=13.41 | menor=23.1 | var=41.95% | ouro | medio | match=NAC ACETILCISTEINA 600 MG NA DOSE 60 CAPS
+   2. Amoxicilina + Clavulanato 875/125 mg 14 com        | oferta=28.57 | menor=1.8914 | var=-1410.52% | descartavel | medio | match=AMOXICILINA+CLAV POTASSIO 875+125MG CX 14 COMP REV
+   3. Duloxetina 60 mg                                   | oferta=36.0 | menor=0.9381 | var=-3737.54% | descartavel | medio | match=CLOR DULOXETINA 60MG 30CP C1 EUR-GENERICO
+   4. Tramadol 100 mg                                    | oferta=34.18 | menor=0.5782 | var=-5811.45% | descartavel | medio | match=CLOR TRAMADOL +PARACETAMOL 37,5+325MG 10CPR
+   5. Duloxetina 30 mg                                   | oferta=22.4 | menor=0.9293 | var=-2310.42% | descartavel | medio | match=CLOR DULOXETINA 30MG C/30 CAP
+   6. Dicloridrato de Hidroxizina 25 mg                  | oferta=24.17 | menor=0.2343 | var=-10215.83% | descartavel | alto | match=DICLORIDRATO DE HIDROXIZINA 25MG CX 30 COMP
+   7. Nitazoxanida 500 mg                                | oferta=9.58 | menor=1.5522 | var=-517.19% | descartavel | medio | match=NITAZOXANIDA 500MG 6CPR
+   8. Olmesartana + Anlodipino 40/5 mg                   | oferta=24.54 | menor=0.6379 | var=-3747.0% | descartavel | alto | match=OLMESARTANA+ANLODIPINO 20+5MG C/30 CP
+   9. Paracetamol + Pseudoefedrina 500/30 mg             | oferta=9.37 | menor=0.613 | var=-1428.55% | descartavel | alto | match=PARACETAMOL+ CLOR PSEUDOEFEDRINA
+  10. Prednisona 20 mg                                   | oferta=2.21 | menor=0.252 | var=-776.98% | descartavel | medio | match=PREDNISONA 20MG CX 10 COMP
+  11. Pregabalina 75 mg                                  | oferta=4.24 | menor=5.768 | var=26.49% | ouro | medio | match=PREGABALINA 75MG CX 30 CAP GEL DURA
+  12. Trometamol Cetorolaco 10 mg Sublingual             | oferta=3.75 | menor=0.4188 | var=-795.42% | descartavel | alto | match=TROMETAMOL+CETOROLACO 10MG C/10 SL BIO
+  13. 4 Mg                                               | oferta=3.17 | menor=None | var=None% | descartavel | baixo | match=None
+  14. 8 Mg                                               | oferta=5.55 | menor=None | var=None% | descartavel | baixo | match=None
+  15. 20 Mg                                              | oferta=10.97 | menor=None | var=None% | descartavel | baixo | match=None
+  16. 40 Mg                                              | oferta=13.6 | menor=None | var=None% | descartavel | baixo | match=None
+  17. 20/12,5                                            | oferta=17.75 | menor=None | var=None% | descartavel | baixo | match=None
+  18. 40/12,5                                            | oferta=19.67 | menor=None | var=None% | descartavel | baixo | match=None
+  19. 40/25                                              | oferta=18.01 | menor=None | var=None% | descartavel | baixo | match=None
+  20. 10 Mg C/6 aplic                                    | oferta=2.59 | menor=11.95 | var=78.33% | ouro | medio | match=MOUNJARO 5MG INJ +4CAN APLIC
+  21. 20 Mg C/3 aplic                                    | oferta=5.2733 | menor=11.95 | var=55.87% | ouro | medio | match=MOUNJARO 5MG INJ +4CAN APLIC
+  22. BENEGRIP                                           | oferta=0.15 | menor=0.2115 | var=29.08% | ouro | medio | match=GRIPINEW C/20 COMP = BENEGRIP
+  23. BIOTONICO                                          | oferta=14.53 | menor=17.0996 | var=15.03% | prata | medio | match=BIOTONICO FONTOURA ORIGINAL 400ML
+  24. BUSCOFEM                                           | oferta=2.78 | menor=3.47 | var=19.88% | prata | medio | match=IBUPRIL 400MG COM 8 CPS GEL - BUSCOFEM
+  25. BUSCOPAN                                           | oferta=6.3 | menor=7.41 | var=14.98% | prata | medio | match=BUSCOPAN COMPOSTO GOT 20ML HYP
+  26. CORISTINA                                          | oferta=1.04 | menor=1.5577 | var=33.23% | ouro | medio | match=CORISTINA D PRO 8CPR SN
+  27. ENGOV                                              | oferta=3.7 | menor=5.2858 | var=30.0% | ouro | medio | match=ENGOV AFTER CITRUS FR 250ML-DEMAIS PROD
+  28. ENGOV AFTER                                        | oferta=3.96 | menor=5.2858 | var=25.08% | ouro | alto | match=ENGOV AFTER CITRUS FR 250ML-DEMAIS PROD
+  29. ENGOV UP                                           | oferta=2.64 | menor=5.2858 | var=50.05% | ouro | medio | match=ENGOV AFTER CITRUS FR 250ML-DEMAIS PROD
+  30. EPOCLER                                            | oferta=0.19 | menor=0.2555 | var=25.64% | ouro | medio | match=EPOCLER TODO DIA C/30 COMP
+  31. ESTOMAZIL                                          | oferta=1.6 | menor=1.8557 | var=13.78% | prata | medio | match=ESTOMAZIL S/SABOR 50ENV 5G
+  32. GASTROL                                            | oferta=0.25 | menor=0.3519 | var=28.96% | ouro | medio | match=GASTROL 37+47+35,6MG CX 20 PAST MAST
+  33. LACTO PURGA                                        | oferta=0.4 | menor=0.4759 | var=15.95% | prata | alto | match=LACTO-PURGA C/6
+  34. NEBACETIN                                          | oferta=12.78 | menor=15.97 | var=19.97% | prata | medio | match=NEBACETIN POM BG 15G
+  35. NEOSALDINA                                         | oferta=0.24 | menor=0.3234 | var=25.79% | ouro | medio | match=DORALGINA C/20 = NEOSALDINA
+  36. NEOSALDINA MUSCULAR                                | oferta=0.3 | menor=0.4346 | var=30.97% | ouro | alto | match=NEOSALDINA MUSCULAR 20CPR
+  37. POLARAMINE                                         | oferta=0.73 | menor=0.9751 | var=25.14% | ouro | medio | match=POLARAMINE 2MG CX 20 COMP
+  38. APRACUR                                            | oferta=0.24 | menor=0.3433 | var=30.09% | ouro | medio | match=APRACUR C/6
+  39. DORIL                                              | oferta=1.04 | menor=1.4407 | var=27.81% | ouro | medio | match=DORIL ENXAQUECA C/4 - 250+250+65MG COMP REV
+
+====================================================================================================
+STEP 3: COMPARISON - DB (d8137b11) vs LOCAL
+====================================================================================================
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Acetilcisteina 600 mg
+  [~] Fuzzy match: 'Acetilciste├¡na 600 mg'
+  preco_oferta                  : DB=     13.4100 | LOCAL=     13.4100 [OK]
+  menor_historico               : DB=     23.1000 | LOCAL=     23.1000 [OK]
+  variacao_percentual           : DB=        42.0 | LOCAL=        42.0 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Amoxicilina + Clavulanato 875/125 mg 14 com
+  preco_oferta                  : DB=     28.5700 | LOCAL=     28.5700 [OK]
+  menor_historico               : DB=      1.8914 | LOCAL=      1.8914 [OK]
+  variacao_percentual           : DB=     -1410.5 | LOCAL=     -1410.5 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Duloxetina 60 mg
+  preco_oferta                  : DB=     36.0000 | LOCAL=     36.0000 [OK]
+  menor_historico               : DB=      0.9381 | LOCAL=      0.9381 [OK]
+  variacao_percentual           : DB=     -3737.5 | LOCAL=     -3737.5 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Tramadol 100 mg
+  preco_oferta                  : DB=     34.1800 | LOCAL=     34.1800 [OK]
+  menor_historico               : DB=      0.4323 | LOCAL=      0.5782 [DIFF]
+  variacao_percentual           : DB=     -7806.6 | LOCAL=     -5811.4 [DIFF]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Duloxetina 30 mg
+  preco_oferta                  : DB=     22.4000 | LOCAL=     22.4000 [OK]
+  menor_historico               : DB=      0.9293 | LOCAL=      0.9293 [OK]
+  variacao_percentual           : DB=     -2310.4 | LOCAL=     -2310.4 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Dicloridrato de Hidroxizina 25 mg
+  preco_oferta                  : DB=     24.1700 | LOCAL=     24.1700 [OK]
+  menor_historico               : DB=      0.2343 | LOCAL=      0.2343 [OK]
+  variacao_percentual           : DB=    -10215.8 | LOCAL=    -10215.8 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=        alto | LOCAL=        alto [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Nitazoxanida 500 mg
+  preco_oferta                  : DB=      9.5800 | LOCAL=      9.5800 [OK]
+  menor_historico               : DB=      1.5522 | LOCAL=      1.5522 [OK]
+  variacao_percentual           : DB=      -517.2 | LOCAL=      -517.2 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Olmesartana + Anlodipino 40/5 mg
+  preco_oferta                  : DB=     24.5400 | LOCAL=     24.5400 [OK]
+  menor_historico               : DB=      0.6379 | LOCAL=      0.6379 [OK]
+  variacao_percentual           : DB=     -3747.0 | LOCAL=     -3747.0 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=        alto | LOCAL=        alto [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Paracetamol + Pseudoefedrina 500/30 mg
+  preco_oferta                  : DB=      9.3700 | LOCAL=      9.3700 [OK]
+  menor_historico               : DB=      0.6130 | LOCAL=      0.6130 [OK]
+  variacao_percentual           : DB=     -1428.5 | LOCAL=     -1428.5 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=        alto | LOCAL=        alto [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Prednisona 20 mg
+  preco_oferta                  : DB=      2.2100 | LOCAL=      2.2100 [OK]
+  menor_historico               : DB=      0.2520 | LOCAL=      0.2520 [OK]
+  variacao_percentual           : DB=      -777.0 | LOCAL=      -777.0 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Pregabalina 75 mg
+  preco_oferta                  : DB=      4.2400 | LOCAL=      4.2400 [OK]
+  menor_historico               : DB=      5.7680 | LOCAL=      5.7680 [OK]
+  variacao_percentual           : DB=        26.5 | LOCAL=        26.5 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: Trometamol Cetorolaco 10 mg Sublingual
+  preco_oferta                  : DB=      3.7500 | LOCAL=      3.7500 [OK]
+  menor_historico               : DB=      0.4188 | LOCAL=      0.4188 [OK]
+  variacao_percentual           : DB=      -795.4 | LOCAL=      -795.4 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=        alto | LOCAL=        alto [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: 4 Mg
+  [~] Fuzzy match: 'Ondasetrona 4 Mg'
+  preco_oferta                  : DB=      3.1700 | LOCAL=      3.1700 [OK]
+  menor_historico               : DB=      0.0000 | LOCAL=      0.0000 [OK]
+  variacao_percentual           : DB=         0.0 | LOCAL=         0.0 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       baixo | LOCAL=       baixo [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: 8 Mg
+  [~] Fuzzy match: 'Ondasetrona 8 Mg'
+  preco_oferta                  : DB=      5.5500 | LOCAL=      5.5500 [OK]
+  menor_historico               : DB=      0.0000 | LOCAL=      0.0000 [OK]
+  variacao_percentual           : DB=         0.0 | LOCAL=         0.0 [OK]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       baixo | LOCAL=       baixo [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: 20 Mg
+  [~] Fuzzy match: 'Prednisona 20 mg'
+  preco_oferta                  : DB=      2.2100 | LOCAL=     10.9700 [DIFF]
+  menor_historico               : DB=      0.2520 | LOCAL=      0.0000 [DIFF]
+  variacao_percentual           : DB=      -777.0 | LOCAL=         0.0 [DIFF]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       medio | LOCAL=       baixo [DIFF]
+  descricao_produto             : DB=PREDNISONA 20MG CX 10 COMP
+                                  LOCAL=None
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: 40 Mg
+  [~] Fuzzy match: 'Olmesartana 40 Mg'
+  preco_oferta                  : DB=     13.6000 | LOCAL=     13.6000 [OK]
+  menor_historico               : DB=      0.4743 | LOCAL=      0.0000 [DIFF]
+  variacao_percentual           : DB=     -2767.4 | LOCAL=         0.0 [DIFF]
+  classificacao                 : DB= descartavel | LOCAL= descartavel [OK]
+  confianca_match               : DB=       medio | LOCAL=       baixo [DIFF]
+  descricao_produto             : DB=OLMESARTANA+HCT 20MG+12,5MG CX 30 C
+                                  LOCAL=None
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: 20/12,5
+  [!] NAO ENCONTRADO NO DB
+  LOCAL: preco_oferta=17.75 | menor_hist=None | var=None% | class=descartavel | match=None
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: 40/12,5
+  [!] NAO ENCONTRADO NO DB
+  LOCAL: preco_oferta=19.67 | menor_hist=None | var=None% | class=descartavel | match=None
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: 40/25
+  [!] NAO ENCONTRADO NO DB
+  LOCAL: preco_oferta=18.01 | menor_hist=None | var=None% | class=descartavel | match=None
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: 10 Mg C/6 aplic
+  [~] Fuzzy match: 'Clotrimazol vag 10 Mg C/6 aplic'
+  preco_oferta                  : DB=      2.5900 | LOCAL=      2.5900 [OK]
+  menor_historico               : DB=    209.8100 | LOCAL=     11.9500 [DIFF]
+  variacao_percentual           : DB=        98.8 | LOCAL=        78.3 [DIFF]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: 20 Mg C/3 aplic
+  [~] Fuzzy match: 'Clotrimazol vag 20 Mg C/3 aplic'
+  preco_oferta                  : DB=      5.2733 | LOCAL=      5.2733 [OK]
+  menor_historico               : DB=    209.8100 | LOCAL=     11.9500 [DIFF]
+  variacao_percentual           : DB=        97.5 | LOCAL=        55.9 [DIFF]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: BENEGRIP
+  preco_oferta                  : DB=      0.1500 | LOCAL=      0.1500 [OK]
+  menor_historico               : DB=      0.2115 | LOCAL=      0.2115 [OK]
+  variacao_percentual           : DB=        29.1 | LOCAL=        29.1 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: BIOTONICO
+  preco_oferta                  : DB=     14.5300 | LOCAL=     14.5300 [OK]
+  menor_historico               : DB=     17.0996 | LOCAL=     17.0996 [OK]
+  variacao_percentual           : DB=        15.0 | LOCAL=        15.0 [OK]
+  classificacao                 : DB=       prata | LOCAL=       prata [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: BUSCOFEM
+  preco_oferta                  : DB=      2.7800 | LOCAL=      2.7800 [OK]
+  menor_historico               : DB=      3.4700 | LOCAL=      3.4700 [OK]
+  variacao_percentual           : DB=        19.9 | LOCAL=        19.9 [OK]
+  classificacao                 : DB=       prata | LOCAL=       prata [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: BUSCOPAN
+  preco_oferta                  : DB=      0.7100 | LOCAL=      6.3000 [DIFF]
+  menor_historico               : DB=      0.8297 | LOCAL=      7.4100 [DIFF]
+  variacao_percentual           : DB=        14.4 | LOCAL=        15.0 [DIFF]
+  classificacao                 : DB=       prata | LOCAL=       prata [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: CORISTINA
+  preco_oferta                  : DB=      1.0400 | LOCAL=      1.0400 [OK]
+  menor_historico               : DB=      1.5577 | LOCAL=      1.5577 [OK]
+  variacao_percentual           : DB=        33.2 | LOCAL=        33.2 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: ENGOV
+  preco_oferta                  : DB=      3.7000 | LOCAL=      3.7000 [OK]
+  menor_historico               : DB=      5.2858 | LOCAL=      5.2858 [OK]
+  variacao_percentual           : DB=        30.0 | LOCAL=        30.0 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: ENGOV AFTER
+  preco_oferta                  : DB=      3.9600 | LOCAL=      3.9600 [OK]
+  menor_historico               : DB=      5.2858 | LOCAL=      5.2858 [OK]
+  variacao_percentual           : DB=        25.1 | LOCAL=        25.1 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=        alto | LOCAL=        alto [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: ENGOV UP
+  preco_oferta                  : DB=      2.6400 | LOCAL=      2.6400 [OK]
+  menor_historico               : DB=      5.2858 | LOCAL=      5.2858 [OK]
+  variacao_percentual           : DB=        50.0 | LOCAL=        50.0 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: EPOCLER
+  preco_oferta                  : DB=      0.1900 | LOCAL=      0.1900 [OK]
+  menor_historico               : DB=      0.2555 | LOCAL=      0.2555 [OK]
+  variacao_percentual           : DB=        25.6 | LOCAL=        25.6 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: ESTOMAZIL
+  preco_oferta                  : DB=      1.6000 | LOCAL=      1.6000 [OK]
+  menor_historico               : DB=      1.8557 | LOCAL=      1.8557 [OK]
+  variacao_percentual           : DB=        13.8 | LOCAL=        13.8 [OK]
+  classificacao                 : DB=       prata | LOCAL=       prata [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: GASTROL
+  preco_oferta                  : DB=      0.2500 | LOCAL=      0.2500 [OK]
+  menor_historico               : DB=      0.3519 | LOCAL=      0.3519 [OK]
+  variacao_percentual           : DB=        29.0 | LOCAL=        29.0 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: LACTO PURGA
+  preco_oferta                  : DB=      0.4000 | LOCAL=      0.4000 [OK]
+  menor_historico               : DB=      0.4759 | LOCAL=      0.4759 [OK]
+  variacao_percentual           : DB=        15.9 | LOCAL=        15.9 [OK]
+  classificacao                 : DB=       prata | LOCAL=       prata [OK]
+  confianca_match               : DB=        alto | LOCAL=        alto [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: NEBACETIN
+  preco_oferta                  : DB=     12.7800 | LOCAL=     12.7800 [OK]
+  menor_historico               : DB=     15.9700 | LOCAL=     15.9700 [OK]
+  variacao_percentual           : DB=        20.0 | LOCAL=        20.0 [OK]
+  classificacao                 : DB=       prata | LOCAL=       prata [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: NEOSALDINA
+  preco_oferta                  : DB=      0.2400 | LOCAL=      0.2400 [OK]
+  menor_historico               : DB=      0.3234 | LOCAL=      0.3234 [OK]
+  variacao_percentual           : DB=        25.8 | LOCAL=        25.8 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: NEOSALDINA MUSCULAR
+  preco_oferta                  : DB=      0.3000 | LOCAL=      0.3000 [OK]
+  menor_historico               : DB=      0.4346 | LOCAL=      0.4346 [OK]
+  variacao_percentual           : DB=        31.0 | LOCAL=        31.0 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=        alto | LOCAL=        alto [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: POLARAMINE
+  preco_oferta                  : DB=      0.7300 | LOCAL=      0.7300 [OK]
+  menor_historico               : DB=      0.9751 | LOCAL=      0.9751 [OK]
+  variacao_percentual           : DB=        25.1 | LOCAL=        25.1 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: APRACUR
+  preco_oferta                  : DB=      0.2400 | LOCAL=      0.2400 [OK]
+  menor_historico               : DB=      0.3433 | LOCAL=      0.3433 [OK]
+  variacao_percentual           : DB=        30.1 | LOCAL=        30.1 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+PRODUTO: DORIL
+  preco_oferta                  : DB=      1.0400 | LOCAL=      1.0400 [OK]
+  menor_historico               : DB=      1.4407 | LOCAL=      1.4407 [OK]
+  variacao_percentual           : DB=        27.8 | LOCAL=        27.8 [OK]
+  classificacao                 : DB=        ouro | LOCAL=        ouro [OK]
+  confianca_match               : DB=       medio | LOCAL=       medio [OK]
+
+====================================================================================================
+RESUMO: 164/180 campos OK (91.1%) | 31 divergencias
+====================================================================================================
+
+Divergencias encontradas:
+  1. Tramadol 100 mg: menor_historico DB=0.4323 vs LOCAL=0.5782
+  2. Tramadol 100 mg: variacao_percentual DB=-7806.6 vs LOCAL=-5811.4
+  3. 20 Mg: preco_oferta DB=2.21 vs LOCAL=10.97
+  4. 20 Mg: menor_historico DB=0.252 vs LOCAL=0.0
+  5. 20 Mg: variacao_percentual DB=-777.0 vs LOCAL=0.0
+  6. 20 Mg: confianca_match DB=medio vs LOCAL=baixo
+  7. 40 Mg: menor_historico DB=0.4743 vs LOCAL=0.0
+  8. 40 Mg: variacao_percentual DB=-2767.4 vs LOCAL=0.0
+  9. 40 Mg: confianca_match DB=medio vs LOCAL=baixo
+  10. 20/12,5: nao encontrado no DB
+  11. 40/12,5: nao encontrado no DB
+  12. 40/25: nao encontrado no DB
+  13. 10 Mg C/6 aplic: menor_historico DB=209.81 vs LOCAL=11.95
+  14. 10 Mg C/6 aplic: variacao_percentual DB=98.8 vs LOCAL=78.3
+  15. 20 Mg C/3 aplic: menor_historico DB=209.81 vs LOCAL=11.95
+  16. 20 Mg C/3 aplic: variacao_percentual DB=97.5 vs LOCAL=55.9
+  17. BUSCOPAN: preco_oferta DB=0.71 vs LOCAL=6.3
+  18. BUSCOPAN: menor_historico DB=0.8297 vs LOCAL=7.41
+  19. BUSCOPAN: variacao_percentual DB=14.4 vs LOCAL=15.0
+  20. Amoxi clavi 400 Mg suspens├úo: presente no DB mas NAO no LOCAL
+  21. Bilastina 20/30: presente no DB mas NAO no LOCAL
+  22. Hidroxizina 25/30: presente no DB mas NAO no LOCAL
+  23. Mesalazina 800/30: presente no DB mas NAO no LOCAL
+  24. Levetiracetam 250/30: presente no DB mas NAO no LOCAL
+  25. Olmesartana hct 20/12,5: presente no DB mas NAO no LOCAL
+  26. Olmesartana hct 40/12,5: presente no DB mas NAO no LOCAL
+  27. Olmesartana hct 40/25: presente no DB mas NAO no LOCAL
+  28. Trimetazidina 35 Mg/60: presente no DB mas NAO no LOCAL
+  29. Certo beta neo CR: presente no DB mas NAO no LOCAL
+  30. Tansulosina C/60: presente no DB mas NAO no LOCAL
+  31. Desvenlaflaxina 100/30: presente no DB mas NAO no LOCAL
+
+====================================================================================================
+SANITY CHECKS
+====================================================================================================
+
+*** TODOS OS SANITY CHECKS PASSARAM! ***

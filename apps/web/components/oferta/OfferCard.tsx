@@ -47,8 +47,11 @@ export function OfferCard({ item, analiseId }: { item: ItemOferta; analiseId?: s
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-app">Preço da oferta</p>
+            <p className="text-xs uppercase tracking-wide text-muted-app">Preço da oferta {item.multiplicador_embalagem && item.multiplicador_embalagem > 1 ? "(unit.)" : ""}</p>
             <p className="text-2xl font-bold text-texto">{formatarMoeda(item.preco_oferta)}</p>
+            {item.multiplicador_embalagem && item.multiplicador_embalagem > 1 && item.preco_oferta_caixa ? (
+              <p className="text-[10px] text-texto/50">{formatarMoeda(item.preco_oferta_caixa)}/cx c/{item.multiplicador_embalagem}</p>
+            ) : null}
           </div>
           <div className="flex gap-6 text-right">
             <div>

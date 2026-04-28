@@ -13,6 +13,8 @@ export interface ItemOferta {
   descricao_original: string;
   descricao_produto?: string | null;
   preco_oferta: number;
+  preco_oferta_caixa?: number | null;
+  multiplicador_embalagem?: number | null;
   classificacao: ClassificacaoOferta;
   confianca_match: ConfiancaMatch;
   recomendacao: string;

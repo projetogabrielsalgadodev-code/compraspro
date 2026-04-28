@@ -51,6 +51,35 @@ _GENERIC_FORM_TOKENS = {
 }
 
 
+# ─── Helper: prefix lookup no token_index ─────────────────────────────────────
+
+def _prefix_lookup(token: str, token_index: dict[str, list[str]], min_prefix: int = 4) -> list[str]:
+    """
+    Busca EANs no token_index por correspondência exata OU por prefixo.
+    
+    Resolve o problema de abreviações: "amox" encontra "amoxicilina",
+    "clav" encontra "clavulanato", etc.
+    
+    Rules:
+    - Se o token tem match exato, retorna apenas o exato (mais preciso)
+    - Se não, busca todos os tokens no índice que COMEÇAM com esse token
+    - Mínimo de `min_prefix` chars para evitar matches muito amplos
+    """
+    # 1. Match exato — preferencial
+    if token in token_index:
+        return token_index[token]
+    
+    # 2. Prefix match — só se token tem tamanho mínimo
+    if len(token) < min_prefix:
+        return []
+    
+    results: list[str] = []
+    for idx_token, eans in token_index.items():
+        if idx_token.startswith(token) and idx_token != token:
+            results.extend(eans)
+    return results
+
+
 # ─── Calculos Deterministicos ─────────────────────────────────────────────────
 
 def calcular_variacao_percentual(menor_historico: float | None, preco_oferta: float | None) -> float | None:
@@ -252,10 +281,10 @@ def _match_item_no_arquivo(
 
     candidate_scores: dict[str, float] = {}
     for token in drug_tokens:
-        for ean in token_index.get(token, []):
+        for ean in _prefix_lookup(token, token_index):
             candidate_scores[ean] = candidate_scores.get(ean, 0) + 5.0
     for token in generic_tokens:
-        for ean in token_index.get(token, []):
+        for ean in _prefix_lookup(token, token_index):
             candidate_scores[ean] = candidate_scores.get(ean, 0) + 1.0
 
     if not candidate_scores:
@@ -399,7 +428,7 @@ def buscar_equivalentes(
     # Contar score de cada EAN candidato (SOMENTE por drug_tokens, não genéricos)
     candidate_scores: dict[str, float] = {}
     for token in drug_tokens:
-        for ean in token_index.get(token, []):
+        for ean in _prefix_lookup(token, token_index):
             if ean != ean_principal:
                 candidate_scores[ean] = candidate_scores.get(ean, 0) + 1.0
 
@@ -522,7 +551,13 @@ def construir_indice_arquivo(rows: list[dict]) -> tuple[dict[str, dict], dict[st
             pu = _calcular_preco_unitario(e)
             if pu and pu > 0:
                 # Normalizar preço pela mesma regra usada na oferta
-                precos.append(round(pu / mult, 4))
+                # SANITY CHECK: se o resultado fica < 0.01, provável que pu
+                # já esteja unitário (por comprimido) — não dividir novamente
+                preco_normalizado = round(pu / mult, 4) if mult > 1 else pu
+                if preco_normalizado < 0.01 and pu >= 0.01:
+                    # Dupla divisão detectada — usar preço original
+                    preco_normalizado = pu
+                precos.append(preco_normalizado)
             d = e.get("data_entrada")
             if d:
                 datas.append(str(d))
@@ -765,6 +800,8 @@ def executar_analise_deterministico(
                 itens_resultado.append({
                     "descricao_original": descricao,
                     "preco_oferta": None,
+                    "preco_oferta_caixa": preco_oferta_original,
+                    "multiplicador_embalagem": multiplicador_embalagem,
                     "ean": match["ean"],
                     "descricao_produto": match["descricao_arquivo"],
                     "menor_historico": menor_hist,
@@ -810,6 +847,8 @@ def executar_analise_deterministico(
             itens_resultado.append({
                 "descricao_original": descricao,
                 "preco_oferta": preco_efetivo,
+                "preco_oferta_caixa": preco_oferta_original,
+                "multiplicador_embalagem": multiplicador_embalagem,
                 "ean": match["ean"],
                 "descricao_produto": match["descricao_arquivo"],
                 "menor_historico": menor_hist,
@@ -839,7 +878,7 @@ def executar_analise_deterministico(
                 ean_stats=ean_stats,
                 token_index=token_index,
             )
-            estoque_equiv = sum(eq.get("qtd_entradas", 0) for eq in equivalentes)
+            estoque_equiv = sum(eq.get("estoque_item", 0) for eq in equivalentes)
 
             # Se encontrou equivalentes, usar menor preco deles como referencia
             menor_hist_equiv = None
@@ -872,6 +911,8 @@ def executar_analise_deterministico(
             itens_resultado.append({
                 "descricao_original": descricao,
                 "preco_oferta": preco_oferta,
+                "preco_oferta_caixa": preco_oferta_original,
+                "multiplicador_embalagem": multiplicador_embalagem,
                 "ean": None,
                 "descricao_produto": None,
                 "menor_historico": menor_hist_equiv,

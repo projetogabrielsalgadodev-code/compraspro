@@ -348,15 +348,21 @@ def parse_offer_file(file_bytes: bytes, filename: str) -> tuple[list[dict[str, A
     # Find price column — prefer 'vda' (selling price), then 'preco_unitario', then 'valor_total'
     price_col = None
     price_priority = ["vda", "preco_unitario", "valor_unitario_final", "valor_total", "total"]
+    # Build a normalized → original key map for reliable matching
+    norm_to_key = {k.lower().strip(): k for k in sample_keys}
     for candidate in price_priority:
         if candidate in sample_keys:
             price_col = candidate
             break
+        # Also check normalized version
+        if candidate in norm_to_key:
+            price_col = norm_to_key[candidate]
+            break
     if not price_col:
-        # Try raw key matching
+        # Try raw key matching against aliases
         for key in sample_keys:
-            norm = key.lower().strip()
-            if norm in _OFFER_PRICE_ALIASES:
+            norm = _normalize_column_name(key)
+            if norm in _OFFER_PRICE_ALIASES or key.lower().strip() in _OFFER_PRICE_ALIASES:
                 price_col = key
                 break
 
