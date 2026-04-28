@@ -43,6 +43,11 @@ _GENERIC_FORM_TOKENS = {
     "emulsao", "capilar", "fluido", "condicionador", "harmonizacao",
     "treino", "color", "touch", "novex", "revlon", "loreal",
     "hidratante", "nutritivo", "reparador", "alisamento",
+    # Additional generic terms to prevent cross-category false matches
+    "agua", "micelar", "ampola", "antioxidante", "ions", "dermachem",
+    "health", "labs", "black", "caps", "copo",
+    "quimica", "mole", "dura", "gelatinosa",
+    "revest", "film", "coat", "tabs",
 }
 
 
@@ -184,6 +189,7 @@ def _match_item_no_arquivo(
     """
     from app.services.file_parser import _extract_tokens
     from app.services.offer_extractor import _classificar_forma_farmaceutica
+    import re as _re_match
 
     # Categoria do item da oferta — para filtrar candidatos da mesma forma farmacêutica
     categoria_oferta = _classificar_forma_farmaceutica(descricao)
@@ -215,16 +221,31 @@ def _match_item_no_arquivo(
     drug_tokens = {t for t in item_tokens if len(t) >= 4 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
     generic_tokens = item_tokens - drug_tokens
 
-    # Identify the PRIMARY token — the first significant word in the description
-    # This is usually the product/molecule name (e.g., "GASTROGEL", "DONEPEZILA")
-    import re as _re_match
+    # ── COMBINED NAME DETECTION ──
+    # Detect combined drug names like "AMOX+CLAV", "LANSOPRAZOL+AMOXICILINA" in original text
+    # Split on + and . to get individual molecule tokens
+    combined_parts = set()
+    for part in _re_match.split(r'[+./]', descricao.upper()):
+        part_clean = part.strip()
+        # Only consider alpha parts >= 4 chars as potential molecule names
+        sub_words = _re_match.findall(r'[A-Za-zÀ-ú]{4,}', part_clean)
+        for w in sub_words:
+            w_lower = w.lower()
+            if w_lower not in _GENERIC_FORM_TOKENS and w_lower not in {'caps', 'comp', 'cprs', 'drgs'}:
+                combined_parts.add(w_lower)
+    # Add combined parts as drug tokens (they may already be there from _extract_tokens)
+    drug_tokens = drug_tokens | combined_parts
+
+    # Identify the PRIMARY tokens — ALL significant molecule names from the description
+    # For "Amox+Clav 875mg+125mg c/14", primary tokens are {"amox", "clav"}
     words = _re_match.findall(r"[A-Za-zÀ-ú]{4,}", descricao.upper())
-    primary_token = None
+    primary_tokens = set()
     for w in words:
         w_lower = w.lower()
         if w_lower not in _GENERIC_FORM_TOKENS and w_lower not in {"caps", "comp", "cprs", "drgs"}:
-            primary_token = w_lower
-            break
+            primary_tokens.add(w_lower)
+    # Also add combined parts as primary tokens
+    primary_tokens = primary_tokens | combined_parts
 
     # Maximum possible score (for coverage threshold)
     max_possible_score = len(drug_tokens) * 5.0 + len(generic_tokens) * 1.0
@@ -244,19 +265,34 @@ def _match_item_no_arquivo(
 
     # Iterar candidatos: encontrar o melhor que passa nos filtros
     for best_ean, best_score in sorted_candidates:
-        # Validar: exige ao menos 1 drug token em comum ou score >= 10
         best_desc_tokens = _extract_tokens(ean_stats[best_ean].get("descricao", ""))
-        common_drug_tokens = drug_tokens & best_desc_tokens
+
+        # Also extract combined parts from the candidate description
+        candidate_combined = set()
+        for part in _re_match.split(r'[+./]', ean_stats[best_ean].get("descricao", "").upper()):
+            sub_words = _re_match.findall(r'[A-Za-zÀ-ú]{4,}', part.strip())
+            for w in sub_words:
+                w_lower = w.lower()
+                if w_lower not in _GENERIC_FORM_TOKENS:
+                    candidate_combined.add(w_lower)
+        all_candidate_tokens = best_desc_tokens | candidate_combined
+
+        common_drug_tokens = drug_tokens & all_candidate_tokens
 
         if not common_drug_tokens and best_score < 10:
             continue
 
-        # PRIMARY TOKEN CHECK: the main product name must appear in the candidate
-        # This prevents GASTROGEL DE BOLSO → CALCULADORA DE BOLSO
-        if primary_token and primary_token not in best_desc_tokens:
-            # Allow only if coverage is very high (>= 60%) — meaning lots of other tokens match
-            if max_possible_score > 0 and (best_score / max_possible_score) < 0.6:
-                continue
+        # PRIMARY TOKENS CHECK: ALL primary molecule names from the offer
+        # must appear in the candidate. This prevents:
+        # - "AMOX+CLAV" matching "LANSOPRAZOL+AMOX" (missing CLAV)
+        # - "CEFUROXIMA" matching "CEFALEXINA" (different molecule)
+        if primary_tokens:
+            missing_primary = primary_tokens - all_candidate_tokens
+            if missing_primary:
+                # If more than 30% of primary tokens are missing, reject
+                missing_ratio = len(missing_primary) / len(primary_tokens)
+                if missing_ratio > 0.3:
+                    continue
 
         # COVERAGE THRESHOLD: score must represent at least 30% of possible
         if max_possible_score > 0 and (best_score / max_possible_score) < 0.3:
@@ -318,25 +354,44 @@ def buscar_equivalentes(
     Busca produtos equivalentes no historico baseado em principio ativo (molecula).
 
     Estrategia:
-    1. Extrair tokens farmacologicos da descricao (>= 5 chars, alfa, NÃO genéricos)
-    2. Buscar no token_index todos os EANs que compartilham esses tokens
-    3. Filtrar: remover o EAN do match principal
-    4. Filtrar: manter apenas equivalentes da MESMA categoria farmaceutica
-    5. Ranquear por numero de tokens em comum
-    6. Retornar top N com dados de preco
+    1. Extrair tokens farmacologicos da descricao (>= 4 chars, alfa, NÃO genéricos)
+    2. Identificar o PRIMARY molecule token (ex: 'rivaroxabana', 'domperidona')
+    3. Buscar no token_index todos os EANs que compartilham esses tokens
+    4. Filtrar: remover o EAN do match principal
+    5. Filtrar: exigir que o PRIMARY token esteja presente no equivalente
+    6. Filtrar: manter apenas equivalentes da MESMA categoria farmaceutica
+    7. Ranquear por numero de tokens em comum
+    8. Retornar top N com dados de preco
 
     Returns:
         Lista de dicts {ean, descricao, menor_preco, media_preco, qtd_entradas, demanda_mes}
     """
     from app.services.file_parser import _extract_tokens
     from app.services.offer_extractor import _classificar_forma_farmaceutica
+    import re as _re_equiv
 
     tokens = _extract_tokens(descricao)
-    # Tokens farmacologicos: >= 5 chars, apenas letras, NÃO termos genéricos
-    drug_tokens = {t for t in tokens if len(t) >= 5 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
+    # Tokens farmacologicos: >= 4 chars, apenas letras, NÃO termos genéricos
+    drug_tokens = {t for t in tokens if len(t) >= 4 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
 
     if not drug_tokens:
         return []
+
+    # Identify the PRIMARY molecule token — the LONGEST drug token
+    # which is usually the most specific (e.g., 'rivaroxabana' > 'vitamina')
+    # For compound names like "VITAMINA D3", the primary is "vitamina" but
+    # we need additional context from shorter tokens too.
+    primary_molecule = max(drug_tokens, key=len) if drug_tokens else None
+
+    # Also extract combined parts from original description (handle + separators)
+    combined_parts = set()
+    for part in _re_equiv.split(r'[+./]', descricao.upper()):
+        sub_words = _re_equiv.findall(r'[A-Za-zÀ-ú]{4,}', part.strip())
+        for w in sub_words:
+            w_lower = w.lower()
+            if w_lower not in _GENERIC_FORM_TOKENS:
+                combined_parts.add(w_lower)
+    drug_tokens = drug_tokens | combined_parts
 
     # Categoria do produto original — usada para filtrar equivalentes
     categoria_original = _classificar_forma_farmaceutica(descricao)
@@ -354,7 +409,6 @@ def buscar_equivalentes(
     # Ranquear por score e filtrar por relevancia
     sorted_candidates = sorted(candidate_scores.items(), key=lambda x: x[1], reverse=True)
 
-    # Exigir pelo menos 1 token farmacologico REAL em comum para ser equivalente
     equivalentes = []
     for ean, score in sorted_candidates:
         if len(equivalentes) >= max_equivalentes:
@@ -366,12 +420,34 @@ def buscar_equivalentes(
         if not stats or stats.get("menor_preco") is None:
             continue
 
-        # Verificar que compartilha ao menos 1 drug token (NÃO genérico)
+        # Extract drug tokens from candidate
         ean_tokens = _extract_tokens(stats.get("descricao", ""))
-        ean_drug_tokens = {t for t in ean_tokens if len(t) >= 5 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
-        common = drug_tokens & ean_drug_tokens
+        ean_drug_tokens = {t for t in ean_tokens if len(t) >= 4 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
+
+        # Also extract combined parts from candidate
+        cand_combined = set()
+        for part in _re_equiv.split(r'[+./]', stats.get("descricao", "").upper()):
+            sub_words = _re_equiv.findall(r'[A-Za-zÀ-ú]{4,}', part.strip())
+            for w in sub_words:
+                w_lower = w.lower()
+                if w_lower not in _GENERIC_FORM_TOKENS:
+                    cand_combined.add(w_lower)
+        all_cand_tokens = ean_drug_tokens | cand_combined
+
+        common = drug_tokens & all_cand_tokens
 
         if not common:
+            continue
+
+        # PRIMARY MOLECULE CHECK: the main molecule name must appear in the equivalent
+        # This prevents VITAMINA D3 → VITAMINA C, CAFEINA → FLEXMUSCULAR (has cafeina)
+        if primary_molecule and primary_molecule not in all_cand_tokens:
+            continue
+
+        # COVERAGE CHECK: at least 50% of the original drug tokens must be present
+        # This prevents partial matches where only 1 of 3 molecules match
+        coverage = len(common) / len(drug_tokens) if drug_tokens else 0
+        if coverage < 0.5:
             continue
 
         # Filtrar por mesma categoria farmacêutica (não misturar líquido com sólido)
@@ -615,14 +691,15 @@ def executar_analise_deterministico(
 
     for item in itens_extraidos:
         descricao = item.get("descricao", "")
-        preco_oferta = item.get("preco")
+        preco_oferta_original = item.get("preco")  # Original box/pack price
         ean_oferta = item.get("ean")
         tipo_preco = item.get("tipo_preco", "absoluto")
         desconto_pct = item.get("desconto_percentual")
         multiplicador_embalagem = item.get("multiplicador_embalagem", 1.0)
 
-        # Normalize offer price to unit price if multiplier is present
-        if preco_oferta is not None and multiplicador_embalagem > 0:
+        # Normalize offer price to unit price for COMPARISON only
+        preco_oferta = preco_oferta_original
+        if preco_oferta is not None and multiplicador_embalagem > 1:
             preco_oferta = round(preco_oferta / multiplicador_embalagem, 4)
 
         # 1. MATCHING
