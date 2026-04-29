@@ -368,6 +368,10 @@ def _classificar_forma_farmaceutica(desc: str) -> str:
     if re.search(r"\bSOL\b", d) and ("FR " in d or "ML" in d):
         return "liquido"
     
+    # Catching ML identifiers explicitly
+    if re.search(r"\d+\s*ML\b", d) or re.search(r"MG/ML\b", d):
+        return "liquido"
+    
     # Tópicos — preço por UNIDADE (bisnaga/tubo), não por grama
     topico_markers = [
         "CREME", "POMADA", "POM ", " GEL ",
@@ -390,11 +394,14 @@ def _classificar_forma_farmaceutica(desc: str) -> str:
     # Sólidos contáveis — preço por comprimido/cápsula
     solido_markers = [
         "CPR", "COMP", "CAP", "CPS", "DRG", "DRAGEA", "DRÁGEA",
-        "PASTILHA", "PAST ",
+        "PASTILHA", "PAST ", " CP ", " CP"
     ]
     for marker in solido_markers:
-        if marker in d:
+        if marker in d or d.endswith(marker.strip()):
             return "solido"
+    
+    if re.search(r"\b\d+\s*CP\b", d):
+        return "solido"
     
     # Pó em frasco/pote (ex: SAL DE FRUTA FR 100G, SAL DE FRUTA 100GRS)
     if re.search(r"\bFR\s+\d+\s*G(?:RS)?\b", d):
@@ -431,7 +438,8 @@ def extrair_multiplicador_inteligente(desc: str) -> float:
     """
     # Remove controlled substance markers (C1), (C2), (C4), (C5) that
     # would otherwise be matched by the C/N pattern as "Com 1 unidade"
-    desc = re.sub(r"\(C[1-5]\)", "", desc).strip()
+    desc = re.sub(r"\bC[1-5]\b", "", desc, flags=re.IGNORECASE).strip()
+    desc = re.sub(r"\(C[1-5]\)", "", desc, flags=re.IGNORECASE).strip()
     
     categoria = _classificar_forma_farmaceutica(desc)
     
@@ -486,7 +494,7 @@ def extrair_multiplicador_inteligente(desc: str) -> float:
             mult = float(m_cx.group(1))
             return mult if mult > 0 else 1.0
         
-        m_comp = re.search(r"\b(\d+)\s*(?:COMP|CPR|CAPS|CAP|CPS|DRG)\b", desc, re.IGNORECASE)
+        m_comp = re.search(r"\b(\d+)\s*(?:COMP|CPR|CAPS|CAP|CPS|DRG|CP)\b", desc, re.IGNORECASE)
         if m_comp:
             mult = float(m_comp.group(1))
             return mult if mult > 0 else 1.0
@@ -494,7 +502,7 @@ def extrair_multiplicador_inteligente(desc: str) -> float:
         return 1.0
     
     # UNKNOWN — fallback conservador: tentar C/ se existir, senão 1
-    m_c = re.search(r"\b[cC]/?\s*(\d+)\s*(?:CPR|COMP|CAPS|CAP|CPS|DRG)\b", desc, re.IGNORECASE)
+    m_c = re.search(r"\b[cC]/?\s*(\d+)\s*(?:CPR|COMP|CAPS|CAP|CPS|DRG|CP)\b", desc, re.IGNORECASE)
     if m_c:
         mult = float(m_c.group(1))
         return mult if mult > 0 else 1.0
