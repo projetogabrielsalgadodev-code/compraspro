@@ -16,6 +16,7 @@ ZERO dependencia de LLM para calculos = 100% precisao.
 from __future__ import annotations
 
 import logging
+import re as _re_global
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,34 @@ _GENERIC_FORM_TOKENS = {
     "quimica", "mole", "dura", "gelatinosa",
     "revest", "film", "coat", "tabs",
 }
+
+# Prefixos de sal farmacêutico — NÃO devem ser usados como primary_molecule.
+# Ex: "dicloridrato de hidroxizina" → primary deve ser "hidroxizina", não "dicloridrato".
+_SALT_PREFIXES = {
+    "dicloridrato", "cloridrato", "fumarato", "succinato", "maleato",
+    "tartarato", "mesilato", "besilato", "hemifumarato", "bromidrato",
+    "oxalato", "fosfato", "sulfato", "acetato", "benzoato", "citrato",
+    "lactato", "nitrato", "propionato", "valerato", "dipropionato",
+    "furoato", "palmitato", "estearato", "gluconato", "tosilato",
+    "clor",  # abreviação comum de cloridrato
+    "trometamol",  # sal de cetorolaco
+    "medoxomila",  # sal de olmesartana
+    "axetil",  # sal de cefuroxima
+    "potassio",  # sal de clavulanato
+}
+
+# Regex para extrair dosagens numéricas de descrições farmacêuticas
+_DOSAGE_PATTERN = _re_global.compile(
+    r'(\d+(?:[.,]\d+)?)\s*(?:mg|mcg|g|ml|ui|un)\b',
+    _re_global.IGNORECASE
+)
+
+def _extract_dosages(desc: str) -> set[str]:
+    """Extrai dosagens numéricas normalizadas de uma descrição farmacêutica.
+    Ex: 'Duloxetina 60mg' → {'60'}, 'Amox+Clav 875+125mg' → {'875', '125'}
+    """
+    matches = _DOSAGE_PATTERN.findall(desc)
+    return {m.replace(',', '.') for m in matches}
 
 
 # ─── Helper: prefix lookup no token_index ─────────────────────────────────────
@@ -290,10 +319,44 @@ def _match_item_no_arquivo(
     if not candidate_scores:
         return None
 
+    # Bug 18: Extrair dosagens da oferta para scoring
+    offer_dosages = _extract_dosages(descricao)
+
     sorted_candidates = sorted(candidate_scores.items(), key=lambda x: x[1], reverse=True)
 
+    # Aplicar ajustes de score antes de iterar (dosagem + palavras extra)
+    adjusted_candidates: list[tuple[str, float]] = []
+    for ean, raw_score in sorted_candidates:
+        adj_score = raw_score
+        cand_desc = ean_stats[ean].get("descricao", "")
+
+        # Bug 18: Dosage matching — boost se dosagem coincide, penalizar se difere
+        if offer_dosages:
+            cand_dosages = _extract_dosages(cand_desc)
+            if cand_dosages:
+                common_doses = offer_dosages & cand_dosages
+                if common_doses:
+                    adj_score += len(common_doses) * 10.0  # forte boost por dosagem
+                else:
+                    adj_score -= 5.0  # penalidade por dosagem diferente
+
+        # Bug 17: Penalizar candidatos com palavras significativas extras
+        # Ex: "ENGOV" não deve matchear "ENGOV AFTER BERRY VIBES" (produto diferente)
+        cand_drug_tokens = {t for t in _extract_tokens(cand_desc) 
+                           if len(t) >= 4 and t.isalpha() and t not in _GENERIC_FORM_TOKENS}
+        extra_cand_tokens = cand_drug_tokens - drug_tokens
+        # Não penalizar salt prefixes ou tokens genéricos
+        extra_significant = extra_cand_tokens - _SALT_PREFIXES
+        if extra_significant and len(drug_tokens) <= 2:
+            adj_score -= len(extra_significant) * 3.0
+
+        adjusted_candidates.append((ean, adj_score))
+
+    # Re-sort by adjusted score
+    adjusted_candidates.sort(key=lambda x: x[1], reverse=True)
+
     # Iterar candidatos: encontrar o melhor que passa nos filtros
-    for best_ean, best_score in sorted_candidates:
+    for best_ean, best_score in adjusted_candidates:
         best_desc_tokens = _extract_tokens(ean_stats[best_ean].get("descricao", ""))
 
         # Also extract combined parts from the candidate description
@@ -422,10 +485,15 @@ def buscar_equivalentes(
         return []
 
     # Identify the PRIMARY molecule token — the LONGEST drug token
-    # which is usually the most specific (e.g., 'rivaroxabana' > 'vitamina')
-    # For compound names like "VITAMINA D3", the primary is "vitamina" but
-    # we need additional context from shorter tokens too.
-    primary_molecule = max(drug_tokens, key=len) if drug_tokens else None
+    # EXCLUDING salt prefixes (dicloridrato, fumarato, etc.)
+    # Ex: "DICLORIDRATO DE HIDROXIZINA" → primary = "hidroxizina", NOT "dicloridrato"
+    molecule_candidates = drug_tokens - _SALT_PREFIXES
+    if molecule_candidates:
+        primary_molecule = max(molecule_candidates, key=len)
+    elif drug_tokens:
+        primary_molecule = max(drug_tokens, key=len)
+    else:
+        primary_molecule = None
 
     # Also extract combined parts from original description (handle + separators)
     combined_parts = set()
@@ -483,10 +551,17 @@ def buscar_equivalentes(
         if not common:
             continue
 
-        # PRIMARY MOLECULE CHECK: the main molecule name must appear in the equivalent
-        # This prevents VITAMINA D3 → VITAMINA C, CAFEINA → FLEXMUSCULAR (has cafeina)
-        if primary_molecule and primary_molecule not in all_cand_tokens:
-            continue
+        # PRIMARY MOLECULE CHECK (prefix-aware): the main molecule name
+        # must appear in the equivalent.
+        # This prevents VITAMINA D3 → VITAMINA C, HIDROXIZINA → BETAISTINA
+        if primary_molecule:
+            primary_found = False
+            for ct in all_cand_tokens:
+                if primary_molecule.startswith(ct) or ct.startswith(primary_molecule):
+                    primary_found = True
+                    break
+            if not primary_found:
+                continue
 
         # COVERAGE CHECK: at least 50% of the original drug tokens must be present
         # This prevents partial matches where only 1 of 3 molecules match
@@ -766,16 +841,28 @@ def executar_analise_deterministico(
             menor_hist = match["menor_preco"]
             origem_menor = "="
 
-            # Bug 8: Log para diagnóstico de discrepância de multiplicadores
-            if multiplicador_embalagem > 1:
-                from app.services.offer_extractor import extrair_multiplicador_inteligente
-                mult_historico = extrair_multiplicador_inteligente(match["descricao_arquivo"])
-                if mult_historico != multiplicador_embalagem:
-                    logger.warning(
-                        f"MULT DISCREPANCIA: oferta mult={multiplicador_embalagem} vs "
-                        f"historico mult={mult_historico} | "
-                        f"oferta='{descricao[:50]}' historico='{match['descricao_arquivo'][:50]}'"
-                    )
+            # Bug 15: Detectar multiplicador do histórico e equalizar escalas
+            from app.services.offer_extractor import extrair_multiplicador_inteligente
+            mult_historico = extrair_multiplicador_inteligente(match["descricao_arquivo"])
+            
+            # mult_efetivo é o multiplicador real para conversão unitário ↔ caixa
+            # Se a oferta tem mult=1 mas o histórico tem "C/30", usar o do histórico
+            mult_efetivo = multiplicador_embalagem
+            if multiplicador_embalagem <= 1 and mult_historico > 1:
+                mult_efetivo = mult_historico
+                # A oferta é preço de CAIXA, normalizar para unitário
+                if preco_oferta_original is not None:
+                    preco_oferta = round(preco_oferta_original / mult_efetivo, 4)
+                logger.info(
+                    f"ESCALA CORRIGIDA: oferta mult=1 → usando mult_historico={mult_historico} | "
+                    f"oferta='{descricao[:50]}' historico='{match['descricao_arquivo'][:50]}'"
+                )
+            elif mult_historico != multiplicador_embalagem and multiplicador_embalagem > 1:
+                logger.warning(
+                    f"MULT DISCREPANCIA: oferta mult={multiplicador_embalagem} vs "
+                    f"historico mult={mult_historico} | "
+                    f"oferta='{descricao[:50]}' historico='{match['descricao_arquivo'][:50]}'"
+                )
 
             # 2. BUSCAR EQUIVALENTES pelo EAN que deu match (usando descricao do arquivo)
             equivalentes = buscar_equivalentes(
@@ -855,7 +942,8 @@ def executar_analise_deterministico(
             classificacao = classificar_oferta(variacao)
 
             # Re-scale history to match the offer's packaging for the UI
-            menor_hist_caixa = round(menor_hist * multiplicador_embalagem, 4) if menor_hist else None
+            # Bug 15: usar mult_efetivo (pode ser do histórico se oferta mult=1)
+            menor_hist_caixa = round(menor_hist * mult_efetivo, 4) if menor_hist else None
 
             # 5. RECOMENDACAO POR TEMPLATE (usando os valores em escala de caixa para exibicao coerente)
             recomendacao = gerar_recomendacao(
@@ -874,23 +962,20 @@ def executar_analise_deterministico(
 
             estoque_equiv = sum(eq.get("estoque_item", 0) for eq in equivalentes)
 
-            # Re-scale history to match the offer's packaging for the UI
-            menor_hist_caixa = round(menor_hist * multiplicador_embalagem, 4) if menor_hist else None
-
-            # Re-scale equivalentes
+            # Re-scale equivalentes usando mult_efetivo
             for eq in equivalentes:
                 if eq.get("menor_preco"):
-                    eq["menor_preco"] = round(eq["menor_preco"] * multiplicador_embalagem, 4)
+                    eq["menor_preco"] = round(eq["menor_preco"] * mult_efetivo, 4)
                 if eq.get("media_preco"):
-                    eq["media_preco"] = round(eq["media_preco"] * multiplicador_embalagem, 4)
+                    eq["media_preco"] = round(eq["media_preco"] * mult_efetivo, 4)
                 if eq.get("maior_preco"):
-                    eq["maior_preco"] = round(eq["maior_preco"] * multiplicador_embalagem, 4)
+                    eq["maior_preco"] = round(eq["maior_preco"] * mult_efetivo, 4)
 
             itens_resultado.append({
                 "descricao_original": descricao,
                 "preco_oferta": preco_oferta_original,  # Mantem preço original da caixa
                 "preco_oferta_caixa": preco_oferta_original,
-                "multiplicador_embalagem": multiplicador_embalagem,
+                "multiplicador_embalagem": mult_efetivo,  # Bug 15: usar mult real detectado
                 "ean": match["ean"],
                 "descricao_produto": match["descricao_arquivo"],
                 "menor_historico": menor_hist_caixa,  # Histórico escalado para o mesmo multiplicador
@@ -922,6 +1007,19 @@ def executar_analise_deterministico(
             )
             estoque_equiv = sum(eq.get("estoque_item", 0) for eq in equivalentes)
 
+            # Bug 19: Detectar multiplicador dos equivalentes para equalizar escala
+            from app.services.offer_extractor import extrair_multiplicador_inteligente
+            mult_efetivo_nomatch = multiplicador_embalagem
+            if equivalentes and multiplicador_embalagem <= 1:
+                # Usar o multiplicador do equivalente mais relevante (primeiro)
+                eq_desc = equivalentes[0].get("descricao", "")
+                mult_eq = extrair_multiplicador_inteligente(eq_desc)
+                if mult_eq > 1:
+                    mult_efetivo_nomatch = mult_eq
+                    # Normalizar preço da oferta para unitário
+                    if preco_oferta_original is not None:
+                        preco_oferta = round(preco_oferta_original / mult_efetivo_nomatch, 4)
+
             # Se encontrou equivalentes, usar menor preco deles como referencia
             menor_hist_equiv = None
             origem_menor = "!="
@@ -937,7 +1035,7 @@ def executar_analise_deterministico(
                 classificacao = classificar_oferta(variacao)
 
             # Re-scale history to match the offer's packaging for the UI
-            menor_hist_equiv_caixa = round(menor_hist_equiv * multiplicador_embalagem, 4) if menor_hist_equiv else None
+            menor_hist_equiv_caixa = round(menor_hist_equiv * mult_efetivo_nomatch, 4) if menor_hist_equiv else None
 
             recomendacao = gerar_recomendacao(
                 classificacao=classificacao if menor_hist_equiv else "descartavel",
@@ -956,17 +1054,17 @@ def executar_analise_deterministico(
             # Re-scale equivalentes
             for eq in equivalentes:
                 if eq.get("menor_preco"):
-                    eq["menor_preco"] = round(eq["menor_preco"] * multiplicador_embalagem, 4)
+                    eq["menor_preco"] = round(eq["menor_preco"] * mult_efetivo_nomatch, 4)
                 if eq.get("media_preco"):
-                    eq["media_preco"] = round(eq["media_preco"] * multiplicador_embalagem, 4)
+                    eq["media_preco"] = round(eq["media_preco"] * mult_efetivo_nomatch, 4)
                 if eq.get("maior_preco"):
-                    eq["maior_preco"] = round(eq["maior_preco"] * multiplicador_embalagem, 4)
+                    eq["maior_preco"] = round(eq["maior_preco"] * mult_efetivo_nomatch, 4)
 
             itens_resultado.append({
                 "descricao_original": descricao,
                 "preco_oferta": preco_oferta_original,
                 "preco_oferta_caixa": preco_oferta_original,
-                "multiplicador_embalagem": multiplicador_embalagem,
+                "multiplicador_embalagem": mult_efetivo_nomatch,
                 "ean": None,
                 "descricao_produto": None,
                 "menor_historico": menor_hist_equiv_caixa,
