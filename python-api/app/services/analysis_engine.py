@@ -118,9 +118,15 @@ def calcular_variacao_percentual(menor_historico: float | None, preco_oferta: fl
     Positivo = desconto (oferta mais barata)
     Negativo = agio (oferta mais cara)
     """
-    if not menor_historico or not preco_oferta or menor_historico <= 0:
+    if menor_historico is None or preco_oferta is None or menor_historico <= 0:
         return None
-    return round(((menor_historico - preco_oferta) / menor_historico) * 100, 2)
+    variacao = round(((menor_historico - preco_oferta) / menor_historico) * 100, 2)
+    # Sanity check: variações > 500% indicam provável erro de escala/multiplicador
+    if abs(variacao) > 500:
+        logger.warning(
+            f"VARIACAO ANOMALA: {variacao}% (hist={menor_historico}, oferta={preco_oferta}) — provável erro de escala"
+        )
+    return variacao
 
 
 def calcular_sugestao_pedido(demanda_mes: float, estoque: int = 0, meses_cobertura: int = 3) -> int:

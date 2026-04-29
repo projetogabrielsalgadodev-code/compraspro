@@ -66,9 +66,9 @@ def _build_itens_response(resultado_agno) -> list[ItemOfertaResponse]:
                 preco_oferta=item.preco_oferta,
                 preco_oferta_caixa=getattr(item, "preco_oferta_caixa", None),
                 multiplicador_embalagem=getattr(item, "multiplicador_embalagem", None),
-                menor_historico=item.menor_historico if item.menor_historico is not None else 0.0,
+                menor_historico=item.menor_historico,  # None = sem dados (frontend exibe "Sem dados")
                 origem_menor_historico=getattr(item, "origem_menor_historico", None),
-                variacao_percentual=item.variacao_percentual if item.variacao_percentual is not None else 0.0,
+                variacao_percentual=item.variacao_percentual,  # None = sem dados
                 estoque_item=item.estoque_item if item.estoque_item is not None else 0,
                 demanda_mes=item.demanda_mes if item.demanda_mes is not None else 0.0,
                 sugestao_pedido=item.sugestao_pedido if item.sugestao_pedido is not None else 0,

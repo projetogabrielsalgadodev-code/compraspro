@@ -77,9 +77,9 @@ class ItemOfertaResponse(BaseModel):
     preco_oferta: float | None = None
     preco_oferta_caixa: float | None = None
     multiplicador_embalagem: float | None = None
-    menor_historico: float = 0.0
+    menor_historico: float | None = None
     origem_menor_historico: str | None = None
-    variacao_percentual: float = 0.0
+    variacao_percentual: float | None = None
     estoque_item: int = 0
     demanda_mes: float = 0.0
     sugestao_pedido: int = 0

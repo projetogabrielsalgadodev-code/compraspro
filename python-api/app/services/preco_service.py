@@ -20,9 +20,14 @@ def calcular_mediana_historica(entradas: list[dict[str, Any]]) -> float | None:
 
 
 def calcular_variacao_percentual(preco_oferta: float, menor_historico: float | None) -> float | None:
-    if menor_historico in (None, 0):
-      return None
-    return round(((menor_historico - preco_oferta) / menor_historico) * 100, 2)
+    """Wrapper de compatibilidade — delega para analysis_engine (fonte única de verdade).
+
+    NOTA: Esta assinatura tem (preco_oferta, menor_historico), enquanto
+    analysis_engine tem (menor_historico, preco_oferta). Este wrapper inverte
+    os argumentos para manter compatibilidade retroativa.
+    """
+    from app.services.analysis_engine import calcular_variacao_percentual as _calc
+    return _calc(menor_historico, preco_oferta)
 
 
 def extremos_historicos(entradas: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
