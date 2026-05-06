@@ -306,7 +306,7 @@ export function WhatsAppConexao() {
               <Button
                 onClick={desconectar}
                 disabled={actionLoading}
-                variant="outline"
+                variant="ghost"
                 className="gap-2 px-6 text-descartavel hover:bg-descartavel/10 hover:text-descartavel border-descartavel/30"
               >
                 {actionLoading ? (
