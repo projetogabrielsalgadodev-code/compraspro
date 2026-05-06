@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Settings2, Building2, User } from "lucide-react"
+import { Settings2, Building2, User, MessageSquare } from "lucide-react"
 import { ConfiguracoesEmpresaForm } from "@/components/configuracoes/ConfiguracoesEmpresaForm"
 import { EmpresaForm } from "@/components/configuracoes/EmpresaForm"
 import { PerfilForm } from "@/components/configuracoes/PerfilForm"
+import { WhatsAppConexao } from "@/components/configuracoes/WhatsAppConexao"
 
 interface EmpresaData {
   id: string
@@ -34,6 +35,7 @@ interface UsageStats {
 const TABS = [
   { id: "parametros", label: "Parâmetros", icon: Settings2 },
   { id: "empresa", label: "Empresa", icon: Building2 },
+  { id: "whatsapp", label: "WhatsApp", icon: MessageSquare },
   { id: "perfil", label: "Perfil", icon: User },
 ] as const
 
@@ -82,6 +84,7 @@ export function ConfiguracoesTabs({
           Nenhuma empresa vinculada ao seu perfil.
         </div>
       )}
+      {activeTab === "whatsapp" && <WhatsAppConexao />}
       {activeTab === "perfil" && perfil && <PerfilForm perfil={perfil} usageStats={usageStats} />}
       {activeTab === "perfil" && !perfil && (
         <div className="ds-subpanel rounded-2xl p-6 text-center text-secondary">

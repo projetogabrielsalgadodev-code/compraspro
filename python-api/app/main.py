@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import configuracoes, importacoes, ofertas, produtos
+from app.routers import configuracoes, importacoes, ofertas, produtos, whatsapp
 
 
 app = FastAPI(title="Compras PRO API", version="0.2.0")
@@ -32,3 +32,4 @@ app.include_router(ofertas.router, prefix="/api/ofertas", tags=["ofertas"])
 app.include_router(produtos.router, prefix="/api/produtos", tags=["produtos"])
 app.include_router(importacoes.router, prefix="/api/importacoes", tags=["importacoes"])
 app.include_router(configuracoes.router, prefix="/api/configuracoes", tags=["configuracoes"])
+app.include_router(whatsapp.router, prefix="/api/whatsapp", tags=["whatsapp"])

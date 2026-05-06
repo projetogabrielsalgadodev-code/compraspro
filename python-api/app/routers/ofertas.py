@@ -95,6 +95,7 @@ async def _executar_e_persistir(
     is_async: bool = False,
     rows_arquivo: list | None = None,
     itens_oferta_arquivo: list | None = None,
+    origem: str = "texto",
 ) -> OfertaAnalyzeResponse:
     """Executa a analise e persiste no Supabase. Retorna o response completo."""
     resultado_agno, metrics = await executar_analise_oferta(
@@ -119,7 +120,7 @@ async def _executar_e_persistir(
     response_obj = OfertaAnalyzeResponse(
         analise_id=analise_id,
         fornecedor=fornecedor_final,
-        origem="texto",
+        origem=origem,
         resumo=resumo,
         itens=itens_response,
         tempo_processamento_ms=metrics.get("tempo_processamento_ms"),
@@ -139,7 +140,7 @@ async def _executar_e_persistir(
                         empresa_id=empresa_id,
                         usuario_id=usuario_id,
                         fornecedor=fornecedor_final,
-                        origem="texto",
+                        origem=origem,
                         entrada_bruta=texto_bruto,
                         status="concluida",
                         tempo_processamento_ms=metrics.get("tempo_processamento_ms"),

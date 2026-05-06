@@ -19,6 +19,15 @@ import logging
 import re as _re_global
 from typing import Any
 
+from collections import defaultdict
+from datetime import datetime
+from statistics import mean
+
+from app.db.supabase_client import get_supabase_client
+from app.services.file_parser import _calcular_preco_unitario, _parse_number, _extract_tokens
+from app.services.offer_extractor import _classificar_forma_farmaceutica, extrair_multiplicador_inteligente
+from app.services.persistencia_service import buscar_produtos, buscar_historico
+
 logger = logging.getLogger(__name__)
 
 # Tokens genéricos de forma farmacêutica / embalagem / via de administração
@@ -251,8 +260,6 @@ def _match_item_no_arquivo(
     Múltiplos itens da oferta podem ter match com o mesmo EAN histórico,
     pois o histórico é referência de preço, não estoque.
     """
-    from app.services.file_parser import _extract_tokens
-    from app.services.offer_extractor import _classificar_forma_farmaceutica
     import re as _re_match
 
     # Categoria do item da oferta — para filtrar candidatos da mesma forma farmacêutica
@@ -445,7 +452,6 @@ def _calcular_demanda_mes(stats: dict) -> float:
     if stats.get("primeira_data") == "N/A" or stats.get("ultima_data") == "N/A":
         return 0.0
     try:
-        from datetime import datetime
         d1 = datetime.strptime(str(stats["primeira_data"])[:10], "%Y-%m-%d")
         d2 = datetime.strptime(str(stats["ultima_data"])[:10], "%Y-%m-%d")
         meses = max(1, (d2 - d1).days / 30)
@@ -479,8 +485,6 @@ def buscar_equivalentes(
     Returns:
         Lista de dicts {ean, descricao, menor_preco, media_preco, qtd_entradas, demanda_mes}
     """
-    from app.services.file_parser import _extract_tokens
-    from app.services.offer_extractor import _classificar_forma_farmaceutica
     import re as _re_equiv
 
     tokens = _extract_tokens(descricao)
@@ -605,10 +609,6 @@ def construir_indice_arquivo(rows: list[dict]) -> tuple[dict[str, dict], dict[st
         - ean_stats[ean] = {descricao, menor_preco, media_preco, ...}
         - token_index[token] = [lista de EANs que contem esse token]
     """
-    from collections import defaultdict
-    from statistics import mean
-    from app.services.file_parser import _calcular_preco_unitario, _parse_number, _extract_tokens
-    from app.services.offer_extractor import extrair_multiplicador_inteligente
 
     by_ean: dict[str, list[dict]] = defaultdict(list)
 
@@ -691,10 +691,6 @@ def construir_indice_banco(empresa_id: str) -> tuple[dict[str, dict], dict[str, 
     Constroi o indice deterministico baixando produtos e historico do Supabase.
     Isso substitui as queries granulares por uma carga massiva no inicio da analise.
     """
-    from app.db.supabase_client import get_supabase_client
-    from app.services.persistencia_service import buscar_produtos, buscar_historico
-    from app.services.file_parser import _extract_tokens
-    from statistics import mean
 
     client = get_supabase_client()
     if not client:
@@ -848,7 +844,6 @@ def executar_analise_deterministico(
             origem_menor = "="
 
             # Bug 15: Detectar multiplicador do histórico e equalizar escalas
-            from app.services.offer_extractor import extrair_multiplicador_inteligente
             mult_historico = extrair_multiplicador_inteligente(match["descricao_arquivo"])
             
             # mult_efetivo é o multiplicador real para conversão unitário ↔ caixa
@@ -1014,7 +1009,6 @@ def executar_analise_deterministico(
             estoque_equiv = sum(eq.get("estoque_item", 0) for eq in equivalentes)
 
             # Bug 19: Detectar multiplicador dos equivalentes para equalizar escala
-            from app.services.offer_extractor import extrair_multiplicador_inteligente
             mult_efetivo_nomatch = multiplicador_embalagem
             if equivalentes and multiplicador_embalagem <= 1:
                 # Usar o multiplicador do equivalente mais relevante (primeiro)

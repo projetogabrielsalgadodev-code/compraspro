@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
     supabase_jwt_secret: str | None = None
+    cron_secret: str | None = None
+    resend_api_key: str | None = None
+    uazapi_admin_token: str | None = None
+    uazapi_base_url: str = "https://api.uazapi.com"
 
 
 @lru_cache
