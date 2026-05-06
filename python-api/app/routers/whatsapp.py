@@ -838,6 +838,21 @@ async def get_instancia_status(
         else "desconectada"
     )
 
+    # Contar mensagens pendentes para habilitar botão "Analisar WhatsApp"
+    mensagens_pendentes = 0
+    if is_connected:
+        try:
+            count_result = (
+                client.table("whatsapp_mensagens")
+                .select("id", count="exact")
+                .eq("empresa_id", empresa_id)
+                .eq("status_analise", "pendente")
+                .execute()
+            )
+            mensagens_pendentes = count_result.count or 0
+        except Exception:
+            pass  # Não bloqueia o status se a contagem falhar
+
     return {
         "status": status_interno,
         "qrcode": qrcode if not is_connected else None,
@@ -845,6 +860,7 @@ async def get_instancia_status(
         "numero_telefone": phone_number,
         "nome_instancia": instancia.get("nome_instancia"),
         "instance_id": instancia["instance_id"],
+        "mensagens_pendentes": mensagens_pendentes,
     }
 
 
@@ -938,4 +954,65 @@ async def reconectar_instancia(
     return {
         "status": "aguardando_qr",
         "qrcode": qrcode_base64,
+    }
+
+
+@router.post("/instancia/analisar")
+async def analisar_mensagens_whatsapp(
+    background_tasks: BackgroundTasks,
+    empresa_id: str = Depends(get_current_empresa_id),
+):
+    """Dispara análise manual das mensagens pendentes do WhatsApp da empresa.
+
+    Chamado pelo botão "Analisar WhatsApp" no frontend.
+    Reutiliza a mesma lógica de background do cron.
+    """
+    client = get_supabase_client()
+    if not client:
+        raise HTTPException(503, "Supabase indisponível.")
+
+    # Verificar se WhatsApp está conectado
+    instancia = (
+        client.table("whatsapp_instancias")
+        .select("id, status")
+        .eq("empresa_id", empresa_id)
+        .eq("status", "conectada")
+        .limit(1)
+        .execute()
+    )
+
+    if not instancia.data:
+        raise HTTPException(400, "WhatsApp não está conectado.")
+
+    # Buscar mensagens pendentes
+    msgs_response = (
+        client.table("whatsapp_mensagens")
+        .select("*")
+        .eq("empresa_id", empresa_id)
+        .in_("status_analise", ["pendente", "erro_analise"])
+        .eq("tipo_mensagem", "text")
+        .order("timestamp_msg")
+        .limit(50)
+        .execute()
+    )
+
+    if not msgs_response.data:
+        return {"status": "ok", "processados": 0, "mensagem": "Nenhuma mensagem pendente."}
+
+    # Agrupar por chat_id
+    grupos: dict[str, list[dict]] = defaultdict(list)
+    for msg in msgs_response.data:
+        grupos[msg["chat_id"]].append(msg)
+
+    # Processar em background
+    background_tasks.add_task(
+        _processar_cron_empresa,
+        empresa_id=empresa_id,
+        grupos=dict(grupos),
+    )
+
+    return {
+        "status": "processando",
+        "chats_enfileirados": len(grupos),
+        "mensagens_total": len(msgs_response.data),
     }

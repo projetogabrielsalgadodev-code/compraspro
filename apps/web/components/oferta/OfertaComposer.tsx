@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   FileUp,
   Loader2,
+  MessageSquare,
   Sparkles,
   XCircle,
   Zap,
@@ -186,6 +187,61 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
   const [modal, setModal] = useState<ModalState>(null);
   const [erroMsg, setErroMsg] = useState<string | undefined>(undefined);
   const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ─── WhatsApp status para o botão "Analisar WhatsApp" ──────────────
+  const [whatsappStatus, setWhatsappStatus] = useState<{
+    connected: boolean;
+    pendentes: number;
+    loading: boolean;
+    analyzing: boolean;
+  }>({ connected: false, pendentes: 0, loading: true, analyzing: false });
+
+  const fetchWhatsappStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/whatsapp/instancia/status", { cache: "no-store" });
+      if (!res.ok) {
+        setWhatsappStatus((prev) => ({ ...prev, connected: false, pendentes: 0, loading: false }));
+        return;
+      }
+      const data = await res.json();
+      setWhatsappStatus((prev) => ({
+        ...prev,
+        connected: data.status === "conectada",
+        pendentes: data.mensagens_pendentes ?? 0,
+        loading: false,
+      }));
+    } catch {
+      setWhatsappStatus((prev) => ({ ...prev, connected: false, pendentes: 0, loading: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWhatsappStatus();
+  }, [fetchWhatsappStatus]);
+
+  const analisarWhatsApp = async () => {
+    setWhatsappStatus((prev) => ({ ...prev, analyzing: true }));
+    try {
+      const res = await fetch("/api/whatsapp/instancia/analisar", { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string })?.error ?? "Falha ao iniciar análise WhatsApp.");
+      }
+      const result = await res.json();
+      if (result.analise_id) {
+        router.push(`/processando?id=${result.analise_id}`);
+      } else {
+        setModal("sucesso");
+        // Atualizar contagem
+        await fetchWhatsappStatus();
+      }
+    } catch (error) {
+      setErroMsg(error instanceof Error ? error.message : "Falha inesperada.");
+      setModal("erro");
+    } finally {
+      setWhatsappStatus((prev) => ({ ...prev, analyzing: false }));
+    }
+  };
 
   useEffect(() => {
     if (sessionStorage.getItem("banco_cliente_importado")) {
@@ -556,6 +612,61 @@ export function OfertaComposer({ eyebrow, titulo, descricao, badge, compact = fa
               />
             )}
           </div>
+
+          {/* ─── Botão "Analisar WhatsApp" ──────────────────────────────── */}
+          {!whatsappStatus.loading && (
+            <div
+              className={`ds-subpanel rounded-[24px] p-4 sm:p-5 transition-all ${
+                whatsappStatus.connected && whatsappStatus.pendentes > 0
+                  ? "border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent"
+                  : "opacity-60"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+                      whatsappStatus.connected
+                        ? "bg-green-500/15 text-green-400"
+                        : "bg-[rgb(var(--bg-card-strong))] text-secondary"
+                    }`}
+                  >
+                    <MessageSquare className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-texto truncate">
+                      Analisar mensagens do WhatsApp
+                    </p>
+                    <p className="text-xs text-secondary mt-0.5">
+                      {whatsappStatus.loading
+                        ? "Verificando..."
+                        : !whatsappStatus.connected
+                          ? "WhatsApp não conectado — conecte em Configurações"
+                          : whatsappStatus.pendentes === 0
+                            ? "Nenhuma mensagem nova para analisar"
+                            : `${whatsappStatus.pendentes} mensagen${whatsappStatus.pendentes === 1 ? "" : "s"} pendente${whatsappStatus.pendentes === 1 ? "" : "s"} de análise`}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  className="h-11 gap-2 rounded-2xl px-5 shrink-0"
+                  disabled={
+                    !whatsappStatus.connected ||
+                    whatsappStatus.pendentes === 0 ||
+                    whatsappStatus.analyzing
+                  }
+                  onClick={analisarWhatsApp}
+                >
+                  {whatsappStatus.analyzing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <MessageSquare className="h-4 w-4" />
+                  )}
+                  {whatsappStatus.analyzing ? "Analisando..." : "Analisar WhatsApp"}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
             <p className="text-sm text-secondary">
