@@ -405,14 +405,15 @@ async def _enviar_whatsapp_notificacao(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-# Cache de tokens em memória para evitar query no banco a cada mensagem
-_token_cache: dict[str, dict] = {}
+# Cache de instâncias em memória para evitar query no banco a cada mensagem
+_instance_cache: dict[str, dict] = {}
 
 
 async def _get_instancia_by_token(token: str) -> dict | None:
     """Busca instância pelo api_token, com cache em memória."""
-    if token in _token_cache:
-        return _token_cache[token]
+    cache_key = f"token:{token}"
+    if cache_key in _instance_cache:
+        return _instance_cache[cache_key]
 
     client = get_supabase_client()
     if not client:
@@ -423,15 +424,41 @@ async def _get_instancia_by_token(token: str) -> dict | None:
             client.table("whatsapp_instancias")
             .select("id, empresa_id, instance_id, status")
             .eq("api_token", token)
-            .eq("status", "conectada")
             .limit(1)
             .execute()
         )
         if result.data:
-            _token_cache[token] = result.data[0]
+            _instance_cache[cache_key] = result.data[0]
             return result.data[0]
     except Exception as e:
-        logger.error(f"[WEBHOOK] Erro ao buscar instância: {e}")
+        logger.error(f"[WEBHOOK] Erro ao buscar instância por token: {e}")
+
+    return None
+
+
+async def _get_instancia_by_instance_id(instance_id: str) -> dict | None:
+    """Busca instância pelo instance_id da Uazapi, com cache em memória."""
+    cache_key = f"iid:{instance_id}"
+    if cache_key in _instance_cache:
+        return _instance_cache[cache_key]
+
+    client = get_supabase_client()
+    if not client:
+        return None
+
+    try:
+        result = (
+            client.table("whatsapp_instancias")
+            .select("id, empresa_id, instance_id, status")
+            .eq("instance_id", instance_id)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            _instance_cache[cache_key] = result.data[0]
+            return result.data[0]
+    except Exception as e:
+        logger.error(f"[WEBHOOK] Erro ao buscar instância por instance_id: {e}")
 
     return None
 
@@ -445,9 +472,21 @@ class UazapiWebhookPayload(BaseModel):
 @router.post("/webhook")
 async def webhook_uazapi(request: Request):
     """Recebe mensagens da Uazapi via webhook.
-    Autenticação: token no header Authorization (Bearer) ou query param."""
 
-    # Extrair token do header ou query param
+    Autenticação flexível — aceita 3 formas:
+    1. Token via header Authorization: Bearer <token>
+    2. Token via query param ?token=<token>
+    3. instance_id no body do payload (formato padrão da Uazapi)
+    """
+
+    # Processar payload primeiro (necessário para fallback por instance_id)
+    try:
+        body = await request.json()
+    except Exception:
+        return {"status": "ok", "ignored": True, "reason": "invalid_json"}
+
+    # Tentar autenticar via token (header ou query param)
+    instancia = None
     auth_header = request.headers.get("Authorization", "")
     token = None
     if auth_header.startswith("Bearer "):
@@ -455,20 +494,20 @@ async def webhook_uazapi(request: Request):
     else:
         token = request.query_params.get("token")
 
-    if not token:
-        raise HTTPException(401, "Token de autenticação ausente.")
+    if token:
+        instancia = await _get_instancia_by_token(token)
 
-    # Validar token contra as instâncias cadastradas
-    instancia = await _get_instancia_by_token(token)
+    # Fallback: buscar pela instance_id no body (formato padrão Uazapi)
     if not instancia:
-        raise HTTPException(401, "Token inválido ou instância desconectada.")
+        instance_id_from_body = body.get("instance")
+        if instance_id_from_body:
+            instancia = await _get_instancia_by_instance_id(instance_id_from_body)
 
-    # Processar payload
-    try:
-        body = await request.json()
-    except Exception:
-        return {"status": "ok", "ignored": True}
+    if not instancia:
+        logger.warning(f"[WEBHOOK] Instância não identificada. token={bool(token)}, instance={body.get('instance')}")
+        raise HTTPException(401, "Instância não identificada.")
 
+    # Extrair event e data do payload já lido
     event = body.get("event", "")
     data = body.get("data", body)  # Uazapi às vezes envia flat, às vezes nested
 
@@ -738,7 +777,7 @@ async def criar_instancia_whatsapp(
     else:
         client.table("whatsapp_instancias").insert(data).execute()
 
-    _token_cache.clear()
+    _instance_cache.clear()
 
     return {
         "status": "aguardando_qr",
@@ -821,7 +860,7 @@ async def get_instancia_status(
             .update(update_data) \
             .eq("id", instancia["id"]).execute()
 
-        _token_cache.clear()
+        _instance_cache.clear()
 
     elif uazapi_raw_status == "disconnected" and instancia["status"] == "conectada":
         client.table("whatsapp_instancias") \
@@ -830,7 +869,7 @@ async def get_instancia_status(
                 "updated_at": datetime.now(ZoneInfo("UTC")).isoformat(),
             }) \
             .eq("id", instancia["id"]).execute()
-        _token_cache.clear()
+        _instance_cache.clear()
 
     status_interno = (
         "conectada" if is_connected
@@ -901,7 +940,7 @@ async def desconectar_instancia(
         }) \
         .eq("id", instancia["id"]).execute()
 
-    _token_cache.clear()
+    _instance_cache.clear()
     return {"status": "desconectada"}
 
 
@@ -949,7 +988,7 @@ async def reconectar_instancia(
         }) \
         .eq("id", instancia["id"]).execute()
 
-    _token_cache.clear()
+    _instance_cache.clear()
 
     return {
         "status": "aguardando_qr",
