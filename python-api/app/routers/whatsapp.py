@@ -336,7 +336,7 @@ async def _enviar_whatsapp_notificacao(
     nome_empresa: str,
     total_analises: int,
 ):
-    \"\"\"Envia notificação por WhatsApp via Uazapi (usando a instância da empresa).\"\"\"
+    """Envia notificação por WhatsApp via Uazapi (usando a instância da empresa)."""
 
     client = get_supabase_client()
     if not client:
