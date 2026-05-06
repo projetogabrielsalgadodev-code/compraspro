@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     cron_secret: str | None = None
     resend_api_key: str | None = None
     uazapi_admin_token: str | None = None
-    uazapi_base_url: str = "https://api.uazapi.com"
+    uazapi_base_url: str = "https://free.uazapi.com"
 
 
 @lru_cache
