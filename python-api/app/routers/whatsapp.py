@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import os
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -1026,6 +1026,156 @@ async def reconectar_instancia(
         "qrcode": qrcode_base64,
     }
 
+
+@router.post("/instancia/sincronizar")
+async def sincronizar_mensagens(
+    empresa_id: str = Depends(get_current_empresa_id),
+):
+    """Sincroniza mensagens recentes da Uazapi (últimas 2h).
+
+    Busca mensagens via API /message/find da Uazapi e salva no banco.
+    Filtra apenas mensagens recebidas (não enviadas pelo dono).
+    """
+    base_url, _ = _get_uazapi_config()
+    client = get_supabase_client()
+    if not client:
+        raise HTTPException(503, "Supabase indisponível.")
+
+    # Buscar instância conectada
+    result = (
+        client.table("whatsapp_instancias")
+        .select("id, instance_id, api_token, status")
+        .eq("empresa_id", empresa_id)
+        .eq("status", "conectada")
+        .limit(1)
+        .execute()
+    )
+
+    if not result.data:
+        raise HTTPException(400, "Nenhuma instância WhatsApp conectada.")
+
+    instancia = result.data[0]
+    token = instancia["api_token"]
+
+    # Timestamp de 2 horas atrás (em ms)
+    cutoff_ms = int((datetime.now(ZoneInfo("UTC")) - timedelta(hours=2)).timestamp() * 1000)
+
+    # Buscar mensagens via API da Uazapi
+    total_salvas = 0
+    total_buscadas = 0
+    offset = 0
+    max_pages = 10  # Segurança: máximo de 10 páginas (2000 mensagens)
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            for _ in range(max_pages):
+                resp = await http.post(
+                    f"{base_url}/message/find",
+                    headers={"token": token, "Content-Type": "application/json"},
+                    json={"limit": 200, "offset": offset},
+                )
+
+                if resp.status_code != 200:
+                    logger.warning(f"[SYNC] Uazapi /message/find retornou {resp.status_code}")
+                    break
+
+                data = resp.json()
+                messages = data.get("messages", [])
+                if not messages:
+                    break
+
+                total_buscadas += len(messages)
+
+                # Filtrar: só mensagens recebidas (não fromMe) e dentro das últimas 2h
+                mensagens_para_salvar = []
+                oldest_timestamp = None
+
+                for msg in messages:
+                    msg_ts = msg.get("messageTimestamp", 0)
+
+                    # Rastrear a mensagem mais antiga da página
+                    if oldest_timestamp is None or msg_ts < oldest_timestamp:
+                        oldest_timestamp = msg_ts
+
+                    # Pular se é mais antiga que 2h
+                    if msg_ts < cutoff_ms:
+                        continue
+
+                    # Pular mensagens enviadas pelo próprio número
+                    if msg.get("fromMe", True):
+                        continue
+
+                    # Extrair dados
+                    message_id = msg.get("messageid") or msg.get("id", "")
+                    chat_id = msg.get("chatid", "")
+                    if not message_id or not chat_id:
+                        continue
+
+                    is_group = msg.get("isGroup", False)
+                    msg_type = msg.get("messageType", "text").lower()
+                    text_content = msg.get("text", "")
+
+                    # Mapear tipo
+                    tipo = "text"
+                    if "image" in msg_type:
+                        tipo = "image"
+                    elif "video" in msg_type:
+                        tipo = "video"
+                    elif "audio" in msg_type or "ptt" in msg_type:
+                        tipo = "audio"
+                    elif "document" in msg_type:
+                        tipo = "document"
+
+                    # Timestamp para ISO
+                    ts_seconds = msg_ts / 1000 if msg_ts > 9999999999 else msg_ts
+                    try:
+                        ts_iso = datetime.fromtimestamp(ts_seconds, tz=ZoneInfo("UTC")).isoformat()
+                    except (ValueError, OSError):
+                        ts_iso = datetime.now(ZoneInfo("UTC")).isoformat()
+
+                    mensagens_para_salvar.append({
+                        "empresa_id": empresa_id,
+                        "instancia_id": instancia["id"],
+                        "message_id": message_id,
+                        "chat_id": chat_id,
+                        "sender_name": msg.get("senderName"),
+                        "sender_phone": msg.get("sender"),
+                        "is_group": is_group,
+                        "tipo_mensagem": tipo,
+                        "conteudo_texto": text_content[:5000] if text_content else None,
+                        "media_url": msg.get("fileURL") or None,
+                        "timestamp_msg": ts_iso,
+                        "status_analise": "pendente",
+                    })
+
+                # Salvar em batch via upsert
+                if mensagens_para_salvar:
+                    try:
+                        client.table("whatsapp_mensagens").upsert(
+                            mensagens_para_salvar,
+                            on_conflict="instancia_id,message_id",
+                        ).execute()
+                        total_salvas += len(mensagens_para_salvar)
+                    except Exception as e:
+                        logger.error(f"[SYNC] Erro ao salvar batch: {e}")
+
+                # Parar se não tem mais páginas ou se já passou do cutoff
+                if not data.get("hasMore", False):
+                    break
+                if oldest_timestamp and oldest_timestamp < cutoff_ms:
+                    break  # Todas as mensagens restantes são mais antigas
+
+                offset = data.get("nextOffset", offset + 200)
+
+    except (httpx.TimeoutException, httpx.ConnectError) as exc:
+        logger.error(f"[SYNC] Erro de rede: {exc}")
+        raise HTTPException(502, "Erro ao conectar com Uazapi.")
+
+    return {
+        "status": "ok",
+        "total_buscadas": total_buscadas,
+        "total_salvas": total_salvas,
+    }
 
 @router.post("/instancia/analisar")
 async def analisar_mensagens_whatsapp(

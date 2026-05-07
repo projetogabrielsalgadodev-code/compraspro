@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Download,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -43,6 +44,8 @@ export function WhatsAppConexao() {
   const [erro, setErro] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [syncLoading, setSyncLoading] = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollingCountRef = useRef(0)
 
@@ -208,6 +211,29 @@ export function WhatsAppConexao() {
     }
   }
 
+  async function sincronizarMensagens() {
+    setSyncLoading(true)
+    setSyncResult(null)
+    setErro(null)
+
+    try {
+      const res = await fetch("/api/whatsapp/instancia/sincronizar", { method: "POST" })
+      const data = await res.json()
+
+      if (res.ok) {
+        setSyncResult(
+          `Sincronização concluída: ${data.total_salvas ?? 0} mensagens novas importadas.`
+        )
+      } else {
+        setErro(data.detail || data.error || "Erro ao sincronizar mensagens.")
+      }
+    } catch {
+      setErro("Erro de conexão ao sincronizar.")
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -250,6 +276,14 @@ export function WhatsAppConexao() {
           {/* QR Code Display */}
           {status === "aguardando_qr" && (
             <QRCodeDisplay qrcode={qrcode} />
+          )}
+
+          {/* Resultado da sincronização */}
+          {syncResult && (
+            <div className="flex items-start gap-3 rounded-2xl border border-primariaapp/20 bg-primariaapp/5 px-4 py-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primariaapp" />
+              <p className="text-sm text-primariaapp">{syncResult}</p>
+            </div>
           )}
 
           {/* Erro */}
@@ -307,19 +341,34 @@ export function WhatsAppConexao() {
             )}
 
             {status === "conectada" && (
-              <Button
-                onClick={desconectar}
-                disabled={actionLoading}
-                variant="ghost"
-                className="gap-2 px-6 text-descartavel hover:bg-descartavel/10 hover:text-descartavel border-descartavel/30"
-              >
-                {actionLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Power className="h-4 w-4" />
-                )}
-                Desconectar
-              </Button>
+              <>
+                <Button
+                  onClick={sincronizarMensagens}
+                  disabled={syncLoading || actionLoading}
+                  className="gap-2 px-6"
+                >
+                  {syncLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {syncLoading ? "Sincronizando..." : "Sincronizar mensagens"}
+                </Button>
+
+                <Button
+                  onClick={desconectar}
+                  disabled={actionLoading || syncLoading}
+                  variant="ghost"
+                  className="gap-2 px-6 text-descartavel hover:bg-descartavel/10 hover:text-descartavel border-descartavel/30"
+                >
+                  {actionLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Power className="h-4 w-4" />
+                  )}
+                  Desconectar
+                </Button>
+              </>
             )}
 
             {status === "desconectada" && (

@@ -47,7 +47,7 @@ export async function POST(
   try {
     const { action } = await params;
 
-    if (!["desconectar", "reconectar", "analisar"].includes(action)) {
+    if (!["desconectar", "reconectar", "analisar", "sincronizar"].includes(action)) {
       return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
     }
 
