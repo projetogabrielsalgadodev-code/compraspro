@@ -726,7 +726,7 @@ async def criar_instancia_whatsapp(
             raise HTTPException(502, "Uazapi não retornou token da instância.")
 
         # ── 2. Configurar webhook automaticamente ──
-        webhook_url = os.getenv("FASTAPI_URL", "https://compraspro-api.onrender.com")
+        webhook_url = os.getenv("FASTAPI_URL", "https://compraspro.onrender.com")
         webhook_url = f"{webhook_url}/api/whatsapp/webhook"
 
         webhook_resp = await http.post(
