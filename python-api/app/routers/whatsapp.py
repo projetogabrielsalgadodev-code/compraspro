@@ -512,7 +512,7 @@ async def webhook_uazapi(request: Request):
     data = body.get("data", body)  # Uazapi às vezes envia flat, às vezes nested
 
     # Só processar eventos de mensagem recebida
-    if event not in ("messages.upsert", "message", ""):
+    if event not in ("messages", "messages.upsert", "message", ""):
         return {"status": "ok", "event": event, "ignored": True}
 
     # Extrair dados da mensagem
