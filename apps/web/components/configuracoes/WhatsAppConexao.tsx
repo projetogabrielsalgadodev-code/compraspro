@@ -103,6 +103,7 @@ export function WhatsAppConexao() {
           pararPolling()
           setStatus("conectada")
           setQrcode(null)
+          setErro(null)
           setInstancia((prev) => ({
             ...prev,
             ...data,
@@ -114,6 +115,9 @@ export function WhatsAppConexao() {
           pararPolling()
           setStatus("desconectada")
           setQrcode(null)
+          if (data.erro) {
+            setErro(data.erro)
+          }
         }
       } catch {
         // Ignora erros de polling silenciosamente

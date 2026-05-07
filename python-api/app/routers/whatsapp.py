@@ -818,17 +818,48 @@ async def get_instancia_status(
     token = instancia["api_token"]
 
     # Consultar status na Uazapi
-    async with httpx.AsyncClient(timeout=15.0) as http:
-        status_resp = await http.get(
-            f"{base_url}/instance/status",
-            headers={"token": token},
-        )
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as http:
+            status_resp = await http.get(
+                f"{base_url}/instance/status",
+                headers={"token": token},
+            )
+    except (httpx.TimeoutException, httpx.ConnectError) as exc:
+        logger.warning(f"[STATUS] Erro de rede ao consultar Uazapi: {exc}")
+        return {
+            "status": "desconectada",
+            "erro": "Não foi possível conectar à Uazapi. Tente novamente.",
+            "nome_instancia": instancia.get("nome_instancia"),
+            "instance_id": instancia["instance_id"],
+            "mensagens_pendentes": 0,
+        }
+
+    if status_resp.status_code == 401:
+        # Token inválido — instância não existe mais na Uazapi
+        logger.warning(f"[STATUS] Uazapi retornou 401 para instância {instancia['instance_id']}. Marcando como desconectada.")
+        client.table("whatsapp_instancias") \
+            .update({
+                "status": "desconectada",
+                "updated_at": datetime.now(ZoneInfo("UTC")).isoformat(),
+            }) \
+            .eq("id", instancia["id"]).execute()
+        _instance_cache.clear()
+        return {
+            "status": "desconectada",
+            "erro": "Instância expirou na Uazapi. Reconecte para gerar um novo QR Code.",
+            "nome_instancia": instancia.get("nome_instancia"),
+            "instance_id": instancia["instance_id"],
+            "mensagens_pendentes": 0,
+        }
 
     if status_resp.status_code != 200:
+        logger.warning(f"[STATUS] Uazapi retornou {status_resp.status_code}: {status_resp.text[:200]}")
         return {
-            "instancia": instancia,
-            "status": instancia["status"],
-            "uazapi_error": status_resp.text,
+            "status": "desconectada",
+            "erro": f"Erro ao consultar Uazapi (código {status_resp.status_code}). Tente reconectar.",
+            "nome_instancia": instancia.get("nome_instancia"),
+            "instance_id": instancia["instance_id"],
+            "mensagens_pendentes": 0,
         }
 
     status_data = status_resp.json()
