@@ -29,7 +29,7 @@ BEGIN
       )
   LOOP
     PERFORM net.http_post(
-      url := 'https://compraspro-api.onrender.com/api/whatsapp/cron-whatsapp',
+      url := 'https://compraspro.onrender.com/api/whatsapp/cron-whatsapp',
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
         'X-Cron-Secret', cron_secret
