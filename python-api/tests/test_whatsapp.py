@@ -1,20 +1,18 @@
-"""Testes para o fluxo completo de WhatsApp do ComprasPRO.
-
-Cobre:
-- Parser de mensagens Uazapi (_parse_uazapi_message)
-- Webhook endpoint (autenticação, persistência)
-- Endpoint de status com contagem de mensagens
-- Endpoint de análise manual
-- Identificação de instância por token e instance_id
-"""
 import pytest
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routers.whatsapp import _parse_uazapi_message
+from app.routers.whatsapp import (
+    _parse_uazapi_message,
+    _cache_get,
+    _cache_set,
+    _instance_cache,
+    _CACHE_TTL_SECONDS,
+)
 
 client = TestClient(app)
 
@@ -266,6 +264,76 @@ class TestParseUazapiMessage:
         assert result["conteudo_texto"] == "Mensagem como string"
         assert result["tipo_mensagem"] == "text"
 
+    def test_imagem_com_media_url(self):
+        """Imagem deve extrair media_url do campo url."""
+        data = {
+            "key": {
+                "remoteJid": "5511999999999@s.whatsapp.net",
+                "fromMe": False,
+                "id": "MSG_MEDIA_URL",
+            },
+            "message": {
+                "imageMessage": {
+                    "caption": "Oferta com imagem",
+                    "url": "https://mmg.whatsapp.net/v/image123.jpg",
+                    "mimetype": "image/jpeg",
+                }
+            },
+            "messageTimestamp": 1715033000,
+        }
+        result = _parse_uazapi_message(data)
+
+        assert result is not None
+        assert result["media_url"] == "https://mmg.whatsapp.net/v/image123.jpg"
+        assert result["conteudo_texto"] == "Oferta com imagem"
+
+    def test_documento_com_caption(self):
+        """Documento com caption deve extrair conteudo_texto."""
+        data = {
+            "key": {
+                "remoteJid": "5511999999999@s.whatsapp.net",
+                "fromMe": False,
+                "id": "MSG_DOC_CAP",
+            },
+            "message": {
+                "documentMessage": {
+                    "caption": "Tabela de preços anexa",
+                    "mimetype": "application/pdf",
+                    "title": "tabela.pdf",
+                }
+            },
+            "messageTimestamp": 1715033000,
+        }
+        result = _parse_uazapi_message(data)
+
+        assert result is not None
+        assert result["tipo_mensagem"] == "document"
+        assert result["conteudo_texto"] == "Tabela de preços anexa"
+
+    def test_video_com_media_url_e_caption(self):
+        """Vídeo deve extrair caption e media_url."""
+        data = {
+            "key": {
+                "remoteJid": "5511999999999@s.whatsapp.net",
+                "fromMe": False,
+                "id": "MSG_VIDEO_CAP",
+            },
+            "message": {
+                "videoMessage": {
+                    "caption": "Vídeo da oferta",
+                    "url": "https://mmg.whatsapp.net/v/video123.mp4",
+                    "mimetype": "video/mp4",
+                }
+            },
+            "messageTimestamp": 1715033000,
+        }
+        result = _parse_uazapi_message(data)
+
+        assert result is not None
+        assert result["tipo_mensagem"] == "video"
+        assert result["conteudo_texto"] == "Vídeo da oferta"
+        assert result["media_url"] == "https://mmg.whatsapp.net/v/video123.mp4"
+
     def test_tipo_outro(self):
         """Tipo de mensagem desconhecido deve ser 'other'."""
         data = {
@@ -446,6 +514,67 @@ class TestWebhookEndpoint:
         # FastAPI pode retornar 422 para JSON inválido
         assert resp.status_code in (200, 422)
 
+    @patch("app.routers.whatsapp._get_instancia_by_instance_id")
+    @patch("app.routers.whatsapp._get_instancia_by_token")
+    @patch("app.routers.whatsapp.get_supabase_client")
+    def test_webhook_fromMe_ignorado(
+        self, mock_supabase, mock_by_token, mock_by_iid
+    ):
+        """A1: Mensagens fromMe devem ser ignoradas e não salvas."""
+        mock_by_token.return_value = None
+        mock_by_iid.return_value = FAKE_INSTANCIA
+
+        mock_client = MagicMock()
+        mock_supabase.return_value = mock_client
+
+        payload = {
+            "event": "message",
+            "instance": "ra6f045ea899ae5",
+            "data": {
+                "key": {
+                    "remoteJid": "5511999999999@s.whatsapp.net",
+                    "fromMe": True,
+                    "id": "FROMME_001",
+                },
+                "message": {"conversation": "Minha própria mensagem"},
+                "pushName": "Eu",
+                "messageTimestamp": 1715033000,
+            },
+        }
+        resp = client.post("/api/whatsapp/webhook", json=payload)
+
+        assert resp.status_code == 200
+        assert resp.json().get("ignored") is True
+        assert resp.json().get("reason") == "fromMe"
+        # Verifica que NÃO tentou salvar no banco
+        mock_client.table.assert_not_called()
+
+    @patch("app.routers.whatsapp._get_instancia_by_instance_id")
+    @patch("app.routers.whatsapp._get_instancia_by_token")
+    @patch("app.routers.whatsapp.get_supabase_client")
+    def test_webhook_erro_nao_expoe_detalhes(
+        self, mock_supabase, mock_by_token, mock_by_iid
+    ):
+        """M4: Webhook não deve expor detalhes internos em caso de erro."""
+        mock_by_token.return_value = None
+        mock_by_iid.return_value = FAKE_INSTANCIA
+
+        mock_client = MagicMock()
+        mock_client.table.return_value.upsert.return_value.execute.side_effect = Exception(
+            "connection refused (192.168.1.1:5432)"
+        )
+        mock_supabase.return_value = mock_client
+
+        payload = _make_webhook_payload()
+        resp = client.post("/api/whatsapp/webhook", json=payload)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "error"
+        # Não deve conter IP, porta ou detalhes de conexão
+        assert "192.168" not in data.get("detail", "")
+        assert "connection refused" not in data.get("detail", "")
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 3. TESTES DE STATUS COM CONTAGEM DE MENSAGENS PENDENTES
@@ -567,3 +696,53 @@ class TestWebhookE2EProd:
         resp = httpx.get("https://compraspro.onrender.com/health", timeout=30)
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. TESTES DO CACHE COM TTL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestCacheTTL:
+    """Testes unitários do cache com TTL."""
+
+    def setup_method(self):
+        _instance_cache.clear()
+
+    def teardown_method(self):
+        _instance_cache.clear()
+
+    def test_cache_set_e_get(self):
+        """Cache deve armazenar e retornar dados corretamente."""
+        _cache_set("test_key", {"id": "123", "status": "conectada"})
+        result = _cache_get("test_key")
+
+        assert result is not None
+        assert result["id"] == "123"
+        assert result["status"] == "conectada"
+
+    def test_cache_miss(self):
+        """Cache deve retornar None para chave inexistente."""
+        result = _cache_get("chave_inexistente")
+        assert result is None
+
+    def test_cache_expiracao(self):
+        """Cache deve expirar após TTL."""
+        # Inserir com timestamp no passado (simulando expiração)
+        past_ts = datetime.now(ZoneInfo("UTC")).timestamp() - _CACHE_TTL_SECONDS - 10
+        _instance_cache["expired_key"] = ({"id": "old"}, past_ts)
+
+        result = _cache_get("expired_key")
+        assert result is None
+        # Entry deve ter sido removida
+        assert "expired_key" not in _instance_cache
+
+    def test_cache_clear(self):
+        """Cache clear deve limpar todas as entradas."""
+        _cache_set("key1", {"id": "1"})
+        _cache_set("key2", {"id": "2"})
+        _instance_cache.clear()
+
+        assert _cache_get("key1") is None
+        assert _cache_get("key2") is None
+        assert len(_instance_cache) == 0

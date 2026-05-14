@@ -405,15 +405,34 @@ async def _enviar_whatsapp_notificacao(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-# Cache de instâncias em memória para evitar query no banco a cada mensagem
-_instance_cache: dict[str, dict] = {}
+# Cache de instâncias em memória com TTL de 5 minutos
+_CACHE_TTL_SECONDS = 300
+_instance_cache: dict[str, tuple[dict, float]] = {}
+
+
+def _cache_get(key: str) -> dict | None:
+    """Busca no cache com verificação de TTL."""
+    entry = _instance_cache.get(key)
+    if entry is None:
+        return None
+    data, ts = entry
+    if (datetime.now(ZoneInfo("UTC")).timestamp() - ts) > _CACHE_TTL_SECONDS:
+        _instance_cache.pop(key, None)
+        return None
+    return data
+
+
+def _cache_set(key: str, data: dict) -> None:
+    """Armazena no cache com timestamp."""
+    _instance_cache[key] = (data, datetime.now(ZoneInfo("UTC")).timestamp())
 
 
 async def _get_instancia_by_token(token: str) -> dict | None:
-    """Busca instância pelo api_token, com cache em memória."""
+    """Busca instância pelo api_token, com cache em memória (TTL 5min)."""
     cache_key = f"token:{token}"
-    if cache_key in _instance_cache:
-        return _instance_cache[cache_key]
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     client = get_supabase_client()
     if not client:
@@ -428,7 +447,7 @@ async def _get_instancia_by_token(token: str) -> dict | None:
             .execute()
         )
         if result.data:
-            _instance_cache[cache_key] = result.data[0]
+            _cache_set(cache_key, result.data[0])
             return result.data[0]
     except Exception as e:
         logger.error(f"[WEBHOOK] Erro ao buscar instância por token: {e}")
@@ -437,10 +456,11 @@ async def _get_instancia_by_token(token: str) -> dict | None:
 
 
 async def _get_instancia_by_instance_id(instance_id: str) -> dict | None:
-    """Busca instância pelo instance_id da Uazapi, com cache em memória."""
+    """Busca instância pelo instance_id da Uazapi, com cache em memória (TTL 5min)."""
     cache_key = f"iid:{instance_id}"
-    if cache_key in _instance_cache:
-        return _instance_cache[cache_key]
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     client = get_supabase_client()
     if not client:
@@ -455,7 +475,7 @@ async def _get_instancia_by_instance_id(instance_id: str) -> dict | None:
             .execute()
         )
         if result.data:
-            _instance_cache[cache_key] = result.data[0]
+            _cache_set(cache_key, result.data[0])
             return result.data[0]
     except Exception as e:
         logger.error(f"[WEBHOOK] Erro ao buscar instância por instance_id: {e}")
@@ -520,6 +540,14 @@ async def webhook_uazapi(request: Request):
     if not message_data:
         return {"status": "ok", "no_message": True}
 
+    # A1: Ignorar mensagens enviadas pelo próprio número (fromMe)
+    raw_key = data.get("key", {}) if isinstance(data, dict) else {}
+    messages_arr = data.get("messages", [])
+    if isinstance(messages_arr, list) and messages_arr:
+        raw_key = messages_arr[0].get("key", {})
+    if raw_key.get("fromMe", False):
+        return {"status": "ok", "ignored": True, "reason": "fromMe"}
+
     # Salvar no banco (idempotente via UNIQUE constraint)
     client = get_supabase_client()
     if not client:
@@ -548,8 +576,8 @@ async def webhook_uazapi(request: Request):
         ).execute()
     except Exception as e:
         logger.error(f"[WEBHOOK] Erro ao salvar mensagem: {e}")
-        # Não levanta erro — o webhook deve retornar 200 para a Uazapi não retentar
-        return {"status": "error", "detail": str(e)}
+        # M4: Não expõe detalhes internos — webhook deve retornar 200 para Uazapi não retentar
+        return {"status": "error", "detail": "Erro interno ao processar mensagem."}
 
     return {"status": "ok", "saved": True}
 
@@ -601,12 +629,16 @@ def _parse_uazapi_message(data: dict) -> dict | None:
         elif "imageMessage" in message_content:
             tipo_mensagem = "image"
             conteudo_texto = message_content["imageMessage"].get("caption")
+            media_url = message_content["imageMessage"].get("url")
         elif "documentMessage" in message_content:
             tipo_mensagem = "document"
+            conteudo_texto = message_content["documentMessage"].get("caption")
         elif "audioMessage" in message_content:
             tipo_mensagem = "audio"
         elif "videoMessage" in message_content:
             tipo_mensagem = "video"
+            conteudo_texto = message_content["videoMessage"].get("caption")
+            media_url = message_content["videoMessage"].get("url")
         else:
             tipo_mensagem = "other"
     elif isinstance(message_content, str):
@@ -908,7 +940,7 @@ async def get_instancia_status(
         else "desconectada"
     )
 
-    # Contar mensagens pendentes para habilitar botão "Analisar WhatsApp"
+    # C3: Contar mensagens pendentes com mesmo filtro do /analisar (tipo_mensagem='text')
     mensagens_pendentes = 0
     if is_connected:
         try:
@@ -916,7 +948,8 @@ async def get_instancia_status(
                 client.table("whatsapp_mensagens")
                 .select("id", count="exact")
                 .eq("empresa_id", empresa_id)
-                .eq("status_analise", "pendente")
+                .in_("status_analise", ["pendente", "erro_analise"])
+                .eq("tipo_mensagem", "text")
                 .execute()
             )
             mensagens_pendentes = count_result.count or 0
