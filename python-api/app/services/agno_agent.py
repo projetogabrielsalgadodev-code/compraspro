@@ -22,6 +22,55 @@ logger = logging.getLogger(__name__)
 
 # ─── Execução principal ───────────────────────────────────────────────────────
 
+def _carregar_config_empresa(empresa_id: str) -> dict:
+    """Carrega configuracoes_empresa do Supabase. Retorna defaults se ausente."""
+    from app.db.supabase_client import get_supabase_client
+
+    defaults = {
+        "vantagem_minima_percentual": 1.0,
+        "metodo_comparacao": "lowest",
+        "considerar_equivalentes": True,
+        "horizonte_sugestao_meses": 3,
+        "ignorar_historico_acima_dias": None,
+    }
+
+    client = get_supabase_client()
+    if not client:
+        return defaults
+
+    try:
+        resp = (
+            client.table("configuracoes_empresa")
+            .select(
+                "vantagem_minima_percentual,metodo_comparacao,considerar_equivalentes,"
+                "horizonte_sugestao_meses,ignorar_historico_acima_dias"
+            )
+            .eq("empresa_id", empresa_id)
+            .limit(1)
+            .execute()
+        )
+        data = (resp.data or [None])[0]
+        if not data:
+            return defaults
+        return {
+            "vantagem_minima_percentual": float(
+                data.get("vantagem_minima_percentual") or defaults["vantagem_minima_percentual"]
+            ),
+            "metodo_comparacao": str(data.get("metodo_comparacao") or defaults["metodo_comparacao"]),
+            "considerar_equivalentes": bool(
+                data.get("considerar_equivalentes") if data.get("considerar_equivalentes") is not None
+                else defaults["considerar_equivalentes"]
+            ),
+            "horizonte_sugestao_meses": int(
+                data.get("horizonte_sugestao_meses") or defaults["horizonte_sugestao_meses"]
+            ),
+            "ignorar_historico_acima_dias": data.get("ignorar_historico_acima_dias"),
+        }
+    except Exception as e:
+        logger.warning(f"Falha ao carregar config da empresa {empresa_id}: {e}")
+        return defaults
+
+
 async def executar_analise_oferta(
     texto_bruto: str,
     empresa_id: str,
@@ -80,6 +129,14 @@ async def executar_analise_oferta(
             "Verifique se o texto contem produtos com precos."
         )
 
+    # FASE 1.5: Carregar configuração da empresa (usada em FASE 2 e 3)
+    config = _carregar_config_empresa(empresa_id)
+    logger.info(
+        f"Config empresa {empresa_id[:8]}: vantagem_min={config['vantagem_minima_percentual']}% "
+        f"metodo={config['metodo_comparacao']} eq={config['considerar_equivalentes']} "
+        f"horizonte={config['horizonte_sugestao_meses']}m"
+    )
+
     # FASE 2: Construir indice de dados
     if rows_arquivo is not None:
         logger.info(f"Modo ARQUIVO DETERMINISTICO: {len(rows_arquivo)} linhas")
@@ -87,7 +144,10 @@ async def executar_analise_oferta(
         total_rows = len(rows_arquivo)
     else:
         logger.info(f"Modo BANCO DETERMINISTICO: empresa={empresa_id}")
-        ean_stats, token_index = construir_indice_banco(empresa_id)
+        ean_stats, token_index = construir_indice_banco(
+            empresa_id,
+            ignorar_acima_dias=config.get("ignorar_historico_acima_dias"),
+        )
         total_rows = len(ean_stats)
 
     # FASE 3: Calculos determinísticos em Python puro
@@ -97,6 +157,7 @@ async def executar_analise_oferta(
         ean_stats=ean_stats,
         token_index=token_index,
         total_registros=total_rows,
+        config=config,
     )
 
     elapsed_ms = int((time.time() - start_time) * 1000)

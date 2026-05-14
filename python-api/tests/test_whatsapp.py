@@ -1,3 +1,4 @@
+import os
 import pytest
 import time
 from datetime import datetime
@@ -440,14 +441,22 @@ class TestWebhookEndpoint:
     @patch("app.routers.whatsapp._get_instancia_by_instance_id")
     @patch("app.routers.whatsapp._get_instancia_by_token")
     def test_webhook_instancia_nao_encontrada(self, mock_by_token, mock_by_iid):
-        """Webhook deve retornar 401 quando instância não é encontrada."""
+        """W4: webhook deve retornar 200 (ignored) quando instância não é encontrada.
+
+        Uazapi não tem retry decente — webhook precisa absorver erros silenciosamente
+        para não acumular retries em loop.
+        """
         mock_by_token.return_value = None
         mock_by_iid.return_value = None
 
         payload = _make_webhook_payload(instance_id="instancia_inexistente")
         resp = client.post("/api/whatsapp/webhook", json=payload)
 
-        assert resp.status_code == 401
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+        assert data.get("ignored") is True
+        assert data.get("reason") == "instancia_nao_identificada"
 
     @patch("app.routers.whatsapp._get_instancia_by_instance_id")
     @patch("app.routers.whatsapp._get_instancia_by_token")
@@ -555,7 +564,7 @@ class TestWebhookEndpoint:
     def test_webhook_erro_nao_expoe_detalhes(
         self, mock_supabase, mock_by_token, mock_by_iid
     ):
-        """M4: Webhook não deve expor detalhes internos em caso de erro."""
+        """W4: webhook absorve erro silenciosamente (200 + ignored) e não expõe detalhes."""
         mock_by_token.return_value = None
         mock_by_iid.return_value = FAKE_INSTANCIA
 
@@ -570,10 +579,13 @@ class TestWebhookEndpoint:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "error"
-        # Não deve conter IP, porta ou detalhes de conexão
-        assert "192.168" not in data.get("detail", "")
-        assert "connection refused" not in data.get("detail", "")
+        assert data["status"] == "ok"
+        assert data.get("ignored") is True
+        assert data.get("reason") == "save_error"
+        # Não deve conter IP, porta ou detalhes de conexão em nenhum campo
+        body_str = str(data)
+        assert "192.168" not in body_str
+        assert "connection refused" not in body_str
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -661,11 +673,15 @@ class TestAnalisarEndpoint:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.skipif(
+    not os.environ.get("RUN_E2E_PROD"),
+    reason="Testes E2E contra produção rodam só com RUN_E2E_PROD=1",
+)
 class TestWebhookE2EProd:
     """Testes que disparam contra a API em produção (somente leitura/webhook).
 
     Estes testes NÃO são executados por padrão.
-    Use: pytest tests/test_whatsapp.py -m e2e
+    Use: RUN_E2E_PROD=1 pytest tests/test_whatsapp.py -m e2e
     """
 
     @pytest.mark.e2e

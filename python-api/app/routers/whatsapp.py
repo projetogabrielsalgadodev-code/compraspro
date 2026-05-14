@@ -55,6 +55,56 @@ class CronWhatsAppRequest(BaseModel):
     empresa_id: str
 
 
+def _claim_pending_messages(
+    client, empresa_id: str, limit: int = 50
+) -> list[dict]:
+    """
+    W3: take-ownership atômico das mensagens pendentes.
+
+    Faz UPDATE ... RETURNING para marcar as mensagens como `em_analise` numa
+    única operação, evitando race entre cron e botão manual.
+
+    Usa a RPC `claim_whatsapp_messages` (criada via migration). Se a RPC não
+    estiver disponível, faz fallback para SELECT+UPDATE (com o risco antigo).
+    """
+    # Tenta caminho atômico via RPC
+    try:
+        resp = client.rpc(
+            "claim_whatsapp_messages",
+            {"p_empresa_id": empresa_id, "p_limit": limit},
+        ).execute()
+        rows = resp.data or []
+        if rows:
+            logger.info(f"[CLAIM] Reservadas {len(rows)} msgs para empresa {empresa_id[:8]}")
+        return rows
+    except Exception as e:
+        logger.warning(f"[CLAIM] RPC falhou, usando fallback SELECT+UPDATE: {e}")
+
+    # Fallback (não-atômico)
+    msgs_response = (
+        client.table("whatsapp_mensagens")
+        .select("id, empresa_id, chat_id, conteudo_texto, sender_phone, tipo_mensagem")
+        .eq("empresa_id", empresa_id)
+        .in_("status_analise", ["pendente", "erro_analise"])
+        .eq("tipo_mensagem", "text")
+        .order("timestamp_msg")
+        .limit(limit)
+        .execute()
+    )
+    rows = msgs_response.data or []
+    if not rows:
+        return []
+    msg_ids = [r["id"] for r in rows]
+    try:
+        client.table("whatsapp_mensagens").update(
+            {"status_analise": "em_analise"}
+        ).in_("id", msg_ids).execute()
+    except Exception as e:
+        logger.error(f"[CLAIM] Falha ao marcar em_analise: {e}")
+        return []
+    return rows
+
+
 @router.post("/cron-whatsapp", dependencies=[Depends(verify_cron_secret)])
 async def cron_analise_whatsapp(
     payload: CronWhatsAppRequest,
@@ -68,25 +118,39 @@ async def cron_analise_whatsapp(
     if not client:
         raise HTTPException(503, "Supabase client indisponível.")
 
-    # Buscar msgs pendentes DESTA empresa
-    msgs_response = (
-        client.table("whatsapp_mensagens")
-        .select("*")
-        .eq("empresa_id", empresa_id)
-        .in_("status_analise", ["pendente", "erro_analise"])
-        .eq("tipo_mensagem", "text")
-        .order("timestamp_msg")
-        .limit(50)
-        .execute()
-    )
+    # W6: descobrir número da instância para filtrar mensagens do próprio dono
+    own_phone = _get_own_instance_phone(client, empresa_id)
 
-    if not msgs_response.data:
+    # W3: claim atômico
+    rows = _claim_pending_messages(client, empresa_id, limit=50)
+    if not rows:
         return {"status": "ok", "empresa_id": empresa_id, "processados": 0}
 
-    # Agrupar por chat_id (dentro da mesma empresa)
+    # W6 + W8: filtrar mensagens vindas do próprio dono / chat_id inválido
     grupos: dict[str, list[dict]] = defaultdict(list)
-    for msg in msgs_response.data:
-        grupos[msg["chat_id"]].append(msg)
+    descartadas: list[str] = []
+    for msg in rows:
+        chat_id = (msg.get("chat_id") or "").strip()
+        if not chat_id:
+            descartadas.append(msg["id"])
+            continue
+        sender_phone = (msg.get("sender_phone") or "").strip()
+        if own_phone and sender_phone and _phones_equal(sender_phone, own_phone):
+            descartadas.append(msg["id"])
+            continue
+        grupos[chat_id].append(msg)
+
+    # Marcar descartadas como 'ignorada' (não deixar em 'em_analise')
+    if descartadas:
+        try:
+            client.table("whatsapp_mensagens").update(
+                {"status_analise": "ignorada"}
+            ).in_("id", descartadas).execute()
+        except Exception:
+            pass
+
+    if not grupos:
+        return {"status": "ok", "empresa_id": empresa_id, "processados": 0}
 
     # Processar em background (evita timeout)
     background_tasks.add_task(
@@ -100,6 +164,34 @@ async def cron_analise_whatsapp(
         "empresa_id": empresa_id,
         "chats_enfileirados": len(grupos),
     }
+
+
+def _phones_equal(a: str, b: str) -> bool:
+    """Compara dois números mantendo só dígitos (ignora @c.us e formatação)."""
+    da = "".join(c for c in (a or "") if c.isdigit())
+    db = "".join(c for c in (b or "") if c.isdigit())
+    if not da or not db:
+        return False
+    # tolera diferença DDI 55 vs sem prefixo
+    return da == db or da.endswith(db) or db.endswith(da)
+
+
+def _get_own_instance_phone(client, empresa_id: str) -> str | None:
+    """Retorna o numero_telefone da instância conectada (digit-only)."""
+    try:
+        r = (
+            client.table("whatsapp_instancias")
+            .select("numero_telefone")
+            .eq("empresa_id", empresa_id)
+            .eq("status", "conectada")
+            .limit(1)
+            .execute()
+        )
+        if r.data:
+            return r.data[0].get("numero_telefone")
+    except Exception:
+        return None
+    return None
 
 
 async def _processar_cron_empresa(empresa_id: str, grupos: dict):
@@ -130,15 +222,7 @@ async def _processar_cron_empresa(empresa_id: str, grupos: dict):
                 pass
             continue
 
-        # Marcar como em_analise
-        try:
-            client.table("whatsapp_mensagens") \
-                .update({"status_analise": "em_analise"}) \
-                .in_("id", msg_ids).execute()
-        except Exception as e:
-            logger.error(f"[CRON] Erro ao marcar msgs em_analise: {e}")
-            continue
-
+        # Mensagens já vêm marcadas como em_analise pelo claim atômico (W3).
         analise_id = str(uuid4())
 
         # Criar registro "processando" no banco (como o fluxo async faz)
@@ -346,7 +430,7 @@ async def _enviar_whatsapp_notificacao(
         # Buscar instância conectada da empresa
         inst_response = (
             client.table("whatsapp_instancias")
-            .select("instance_id, api_token")
+            .select("instance_id, api_token, numero_telefone")
             .eq("empresa_id", empresa_id)
             .eq("status", "conectada")
             .limit(1)
@@ -360,6 +444,15 @@ async def _enviar_whatsapp_notificacao(
         instancia = inst_response.data[0]
         instance_id = instancia["instance_id"]
         api_token = instancia["api_token"]
+        own_phone = instancia.get("numero_telefone")
+
+        # W6: NÃO enviar para o próprio número (evita loop via webhook)
+        if own_phone and _phones_equal(own_phone, numero_destino):
+            logger.info(
+                f"[NOTIF] Pulando notificação WhatsApp — destino == número da instância "
+                f"({numero_destino})"
+            )
+            return
 
         # Formatar número (remover caracteres não-numéricos, adicionar @c.us)
         numero_limpo = "".join(c for c in numero_destino if c.isdigit())
@@ -523,9 +616,10 @@ async def webhook_uazapi(request: Request):
         if instance_id_from_body:
             instancia = await _get_instancia_by_instance_id(instance_id_from_body)
 
+    # W4: webhook sempre retorna 200 — Uazapi não tem mecanismo de retry decente
     if not instancia:
         logger.warning(f"[WEBHOOK] Instância não identificada. token={bool(token)}, instance={body.get('instance')}")
-        raise HTTPException(401, "Instância não identificada.")
+        return {"status": "ok", "ignored": True, "reason": "instancia_nao_identificada"}
 
     # Extrair event e data do payload já lido
     event = body.get("event", "")
@@ -551,7 +645,17 @@ async def webhook_uazapi(request: Request):
     # Salvar no banco (idempotente via UNIQUE constraint)
     client = get_supabase_client()
     if not client:
-        raise HTTPException(503, "Supabase indisponível.")
+        # W4: ainda 200 para Uazapi não retentar; mensagem só perdida em outage breve
+        logger.error("[WEBHOOK] Supabase indisponível ao salvar mensagem")
+        return {"status": "ok", "ignored": True, "reason": "db_unavailable"}
+
+    # W5: salvar apenas metadados úteis no raw_payload em vez do JSON inteiro
+    raw_summary = {
+        "event": event,
+        "message_id": message_data["message_id"],
+        "from_jid": message_data.get("sender_id"),
+        "chat_id": message_data["chat_id"],
+    }
 
     try:
         client.table("whatsapp_mensagens").upsert(
@@ -566,18 +670,18 @@ async def webhook_uazapi(request: Request):
                 "sender_phone": message_data.get("sender_phone"),
                 "is_group": message_data.get("is_group", False),
                 "tipo_mensagem": message_data.get("tipo_mensagem", "text"),
-                "conteudo_texto": message_data.get("conteudo_texto"),
+                "conteudo_texto": (message_data.get("conteudo_texto") or "")[:5000],
                 "media_url": message_data.get("media_url"),
                 "timestamp_msg": message_data["timestamp_msg"],
                 "status_analise": "pendente",
-                "raw_payload": body,
+                "raw_payload": raw_summary,
             },
             on_conflict="instancia_id,message_id",
         ).execute()
     except Exception as e:
         logger.error(f"[WEBHOOK] Erro ao salvar mensagem: {e}")
-        # M4: Não expõe detalhes internos — webhook deve retornar 200 para Uazapi não retentar
-        return {"status": "error", "detail": "Erro interno ao processar mensagem."}
+        # W4: webhook deve retornar 200 para Uazapi não retentar
+        return {"status": "ok", "ignored": True, "reason": "save_error"}
 
     return {"status": "ok", "saved": True}
 
@@ -1237,25 +1341,36 @@ async def analisar_mensagens_whatsapp(
     if not instancia.data:
         raise HTTPException(400, "WhatsApp não está conectado.")
 
-    # Buscar mensagens pendentes
-    msgs_response = (
-        client.table("whatsapp_mensagens")
-        .select("*")
-        .eq("empresa_id", empresa_id)
-        .in_("status_analise", ["pendente", "erro_analise"])
-        .eq("tipo_mensagem", "text")
-        .order("timestamp_msg")
-        .limit(50)
-        .execute()
-    )
-
-    if not msgs_response.data:
+    # W3: claim atômico (mesma lógica do cron)
+    rows = _claim_pending_messages(client, empresa_id, limit=50)
+    if not rows:
         return {"status": "ok", "processados": 0, "mensagem": "Nenhuma mensagem pendente."}
 
-    # Agrupar por chat_id
+    # W6 + W8: filtrar próprio dono e chat_id inválido
+    own_phone = _get_own_instance_phone(client, empresa_id)
     grupos: dict[str, list[dict]] = defaultdict(list)
-    for msg in msgs_response.data:
-        grupos[msg["chat_id"]].append(msg)
+    descartadas: list[str] = []
+    for msg in rows:
+        chat_id = (msg.get("chat_id") or "").strip()
+        if not chat_id:
+            descartadas.append(msg["id"])
+            continue
+        sender_phone = (msg.get("sender_phone") or "").strip()
+        if own_phone and sender_phone and _phones_equal(sender_phone, own_phone):
+            descartadas.append(msg["id"])
+            continue
+        grupos[chat_id].append(msg)
+
+    if descartadas:
+        try:
+            client.table("whatsapp_mensagens").update(
+                {"status_analise": "ignorada"}
+            ).in_("id", descartadas).execute()
+        except Exception:
+            pass
+
+    if not grupos:
+        return {"status": "ok", "processados": 0, "mensagem": "Nenhuma mensagem analisável."}
 
     # Processar em background
     background_tasks.add_task(
@@ -1267,5 +1382,5 @@ async def analisar_mensagens_whatsapp(
     return {
         "status": "processando",
         "chats_enfileirados": len(grupos),
-        "mensagens_total": len(msgs_response.data),
+        "mensagens_total": sum(len(g) for g in grupos.values()),
     }

@@ -46,3 +46,6 @@ doc_dump.txt
 test_api.py
 consolidacao_chats_1_a_5.md
 Prototipo FigmaMAKE/
+
+# Local test virtualenv
+.venv-test/

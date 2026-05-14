@@ -1,22 +1,15 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- ComprasPRO — pg_cron + pg_net Setup (idempotente)
+-- Review core features — bundle de correções aplicadas no review de 2026-05-14
 --
--- INSTRUÇÕES: Execute no SQL Editor do Supabase ou via migration.
--- Pré-requisitos:
---   1) Habilitar pg_cron, pg_net e supabase_vault em Database > Extensions.
---   2) Armazenar o segredo do cron no Vault (uma vez por ambiente):
---        SELECT vault.create_secret('SEU_VALOR_AQUI', 'cron_whatsapp_secret');
---      O MESMO valor deve estar em CRON_SECRET no Render (FastAPI).
---
--- IMPORTANTE: o segredo NÃO fica neste arquivo. A function lê do Vault.
+-- Espelha o que foi aplicado no Supabase remoto. Idempotente; pode ser rodada
+-- em qualquer ambiente novo.
 -- ═══════════════════════════════════════════════════════════════════════════
 
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_net;
+-- ─── 1. Rotação do cron secret (assume vault já populado por setup_pg_cron) ──
+-- Em ambiente novo, antes desta migration rodar:
+--   SELECT vault.create_secret('SEU_SECRET', 'cron_whatsapp_secret');
 
--- ─── 1. Dispatcher por empresa ──────────────────────────────────────────────
--- 1 POST por empresa com instância conectada E mensagens pendentes.
-
+-- ─── 2. Dispatcher do cron WhatsApp ──────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.disparar_cron_por_empresa()
 RETURNS void
 LANGUAGE plpgsql
@@ -31,11 +24,9 @@ BEGIN
   FROM vault.decrypted_secrets
   WHERE name = 'cron_whatsapp_secret'
   LIMIT 1;
-
   IF cron_secret IS NULL THEN
     RAISE EXCEPTION 'cron_whatsapp_secret não encontrado no Vault';
   END IF;
-
   FOR emp IN
     SELECT DISTINCT wi.empresa_id
     FROM whatsapp_instancias wi
@@ -49,10 +40,7 @@ BEGIN
   LOOP
     PERFORM net.http_post(
       url := 'https://compraspro.onrender.com/api/whatsapp/cron-whatsapp',
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'X-Cron-Secret', cron_secret
-      ),
+      headers := jsonb_build_object('Content-Type', 'application/json', 'X-Cron-Secret', cron_secret),
       body := jsonb_build_object('empresa_id', emp.empresa_id)
     );
   END LOOP;
@@ -62,8 +50,7 @@ $function$;
 REVOKE EXECUTE ON FUNCTION public.disparar_cron_por_empresa() FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.disparar_cron_por_empresa() TO postgres, service_role;
 
--- ─── 2. Claim atômico de mensagens pendentes ────────────────────────────────
-
+-- ─── 3. Claim atômico ───────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.claim_whatsapp_messages(
   p_empresa_id UUID,
   p_limit INT DEFAULT 50
@@ -103,16 +90,14 @@ $function$;
 REVOKE EXECUTE ON FUNCTION public.claim_whatsapp_messages(UUID, INT) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.claim_whatsapp_messages(UUID, INT) TO service_role;
 
--- ─── 3. Reaper de mensagens travadas em em_analise ──────────────────────────
-
+-- ─── 4. Reaper ──────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.reaper_whatsapp_em_analise()
 RETURNS INT
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $function$
-DECLARE
-  affected INT;
+DECLARE affected INT;
 BEGIN
   WITH cte AS (
     UPDATE whatsapp_mensagens
@@ -129,16 +114,28 @@ $function$;
 REVOKE EXECUTE ON FUNCTION public.reaper_whatsapp_em_analise() FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.reaper_whatsapp_em_analise() TO postgres, service_role;
 
--- ─── 4. Agendamento ─────────────────────────────────────────────────────────
--- Horário comercial BRT (08-20h, de 2 em 2h)  → UTC 11,13,15,17,19,21,23
+-- ─── 5. Índices ─────────────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_wamsg_analise
+  ON public.whatsapp_mensagens(analise_id)
+  WHERE analise_id IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_wamsg_cron_filter
+  ON public.whatsapp_mensagens(empresa_id, status_analise, tipo_mensagem, timestamp_msg);
+
+-- ─── 6. Drop tabelas legadas ────────────────────────────────────────────────
+DROP TABLE IF EXISTS public.analise_itens CASCADE;
+DROP TABLE IF EXISTS public.analises CASCADE;
+
+-- ─── 7. RLS optimization e merge ────────────────────────────────────────────
+-- Ver script setup_pg_cron.sql e migration optimize_rls_policies para o detalhe.
+
+-- ─── 8. Agendar jobs ────────────────────────────────────────────────────────
 DO $$
 DECLARE jid BIGINT;
 BEGIN
   SELECT jobid INTO jid FROM cron.job WHERE jobname='analise-whatsapp-auto';
   IF jid IS NOT NULL THEN PERFORM cron.unschedule(jid); END IF;
 END $$;
-
 SELECT cron.schedule(
   'analise-whatsapp-auto',
   '0 11,13,15,17,19,21,23 * * *',
@@ -151,28 +148,8 @@ BEGIN
   SELECT jobid INTO jid FROM cron.job WHERE jobname='reaper-whatsapp-em-analise';
   IF jid IS NOT NULL THEN PERFORM cron.unschedule(jid); END IF;
 END $$;
-
 SELECT cron.schedule(
   'reaper-whatsapp-em-analise',
   '*/15 * * * *',
   'SELECT public.reaper_whatsapp_em_analise();'
 );
-
--- ─── 5. Limpeza diária (mantida) ────────────────────────────────────────────
-DO $$
-DECLARE jid BIGINT;
-BEGIN
-  SELECT jobid INTO jid FROM cron.job WHERE jobname='limpeza-whatsapp-90d';
-  IF jid IS NOT NULL THEN PERFORM cron.unschedule(jid); END IF;
-END $$;
-
-SELECT cron.schedule(
-  'limpeza-whatsapp-90d',
-  '0 3 * * *',
-  $$
-  DELETE FROM whatsapp_mensagens WHERE created_at < now() - interval '90 days';
-  DELETE FROM notificacoes      WHERE created_at < now() - interval '30 days';
-  $$
-);
-
-SELECT * FROM cron.job ORDER BY jobid;

@@ -147,23 +147,46 @@ def calcular_sugestao_pedido(demanda_mes: float, estoque: int = 0, meses_cobertu
     return max(0, round(demanda_mes * meses_cobertura) - estoque)
 
 
-def classificar_oferta(variacao: float | None) -> str:
+def classificar_oferta(
+    variacao: float | None,
+    estoque_equivalentes: int = 0,
+    demanda_mes: float = 0.0,
+    horizonte_sugestao_meses: int = 3,
+    vantagem_minima_percentual: float = 1.0,
+    considerar_equivalentes: bool = True,
+) -> str:
     """
-    Classifica a oferta com base na variacao percentual.
+    Classifica a oferta conforme AGENTS.md:
 
-    - ouro: >= 20% (desconto forte)
-    - prata: 5% a 20% (desconto moderado)
-    - atencao: 0% a 5% (desconto marginal)
-    - descartavel: < 0% (agio) ou sem dados
+    - ouro: variacao >= 20% (desconto forte)
+    - prata: vantagem_minima <= variacao < 20% (desconto moderado)
+    - atencao: preço bom (>= vantagem_minima) MAS há estoque de equivalente
+               cobrindo o horizonte de sugestão (default: 3 meses).
+    - descartavel: variacao < vantagem_minima (preço pior ou marginal sem necessidade)
+
+    Args:
+        variacao: % de desconto vs referencia historica (positivo = mais barato).
+        estoque_equivalentes: estoque total de produtos equivalentes em unidades.
+        demanda_mes: demanda mensal do produto (em unidades).
+        horizonte_sugestao_meses: nº de meses considerado para cobertura.
+        vantagem_minima_percentual: threshold mínimo configurável (default 1%).
+        considerar_equivalentes: se True, rebaixa Ouro/Prata para Atenção quando
+            há estoque de equivalente suficiente.
     """
     if variacao is None:
         return "descartavel"
+
+    # Cobertura via equivalente: estoque cobre o horizonte completo?
+    if considerar_equivalentes and demanda_mes > 0 and estoque_equivalentes > 0:
+        cobertura_meses = estoque_equivalentes / demanda_mes
+        ja_coberto = cobertura_meses >= horizonte_sugestao_meses
+    else:
+        ja_coberto = False
+
     if variacao >= 20:
-        return "ouro"
-    if variacao >= 5:
-        return "prata"
-    if variacao >= 0:
-        return "atencao"
+        return "atencao" if ja_coberto else "ouro"
+    if variacao >= vantagem_minima_percentual:
+        return "atencao" if ja_coberto else "prata"
     return "descartavel"
 
 
@@ -228,6 +251,13 @@ def gerar_recomendacao(
         return base + equiv_info
 
     if classificacao == "atencao":
+        # Caso A: bom desconto mas há equivalente em estoque suficiente
+        if variacao is not None and variacao >= 5 and equivalentes:
+            return (
+                f"Preço bom ({var_str} de desconto vs {menor_str}{orig_tag}), mas há "
+                f"estoque suficiente de equivalente. Avaliar necessidade antes de comprar.{equiv_info}"
+            )
+        # Caso B: desconto marginal
         if variacao is not None and variacao >= 0:
             return (
                 f"Desconto marginal de {var_str} vs menor historico ({menor_str}{orig_tag}). "
@@ -251,12 +281,10 @@ def _match_item_no_arquivo(
     ean_oferta: str | None,
     ean_stats: dict[str, dict],
     token_index: dict[str, list[str]],
-    used_eans: set[str],
 ) -> dict | None:
     """
     Faz matching de um item da oferta com os dados do arquivo.
-    
-    NOTA: used_eans NÃO é usado para excluir candidatos.
+
     Múltiplos itens da oferta podem ter match com o mesmo EAN histórico,
     pois o histórico é referência de preço, não estoque.
     """
@@ -265,13 +293,36 @@ def _match_item_no_arquivo(
     # Categoria do item da oferta — para filtrar candidatos da mesma forma farmacêutica
     categoria_oferta = _classificar_forma_farmaceutica(descricao)
 
-    # Match por EAN exato (se disponivel)
+    # Match por EAN exato (se disponivel) — valida dosagem e forma antes de aceitar.
     if ean_oferta and ean_oferta in ean_stats:
         stats = ean_stats[ean_oferta]
+        cand_desc = stats.get("descricao", "")
+        cat_cand = _classificar_forma_farmaceutica(cand_desc)
+
+        # Bug A6: validar dosagem e forma também no match por EAN
+        offer_doses = _extract_dosages(descricao)
+        cand_doses = _extract_dosages(cand_desc)
+        confianca_ean = "alto"
+        if offer_doses and cand_doses and not (offer_doses & cand_doses):
+            # Dosagens completamente diferentes — provável EAN reaproveitado entre apresentações
+            confianca_ean = "medio"
+            logger.warning(
+                f"EAN BATEU mas dosagens diferentes: oferta={offer_doses} cand={cand_doses} "
+                f"| oferta='{descricao[:60]}' cand='{cand_desc[:60]}'"
+            )
+        if (categoria_oferta != "unknown" and cat_cand != "unknown"
+                and categoria_oferta != cat_cand):
+            confianca_ean = "baixo"
+            logger.warning(
+                f"EAN BATEU mas forma farmacêutica diferente: "
+                f"oferta={categoria_oferta} cand={cat_cand} "
+                f"| oferta='{descricao[:60]}' cand='{cand_desc[:60]}'"
+            )
+
         return {
             "ean": ean_oferta,
             "descricao_arquivo": stats["descricao"],
-            "confianca_match": "alto",
+            "confianca_match": confianca_ean,
             "menor_preco": stats["menor_preco"],
             "media_preco": stats["media_preco"],
             "maior_preco": stats["maior_preco"],
@@ -283,6 +334,7 @@ def _match_item_no_arquivo(
             "ultima_data": stats["ultima_data"],
         }
 
+    # Categoria já calculada acima — usada também no matching por token
     # Match por tokens ponderados
     item_tokens = _extract_tokens(descricao)
     if len(item_tokens) < 1:
@@ -686,10 +738,96 @@ def construir_indice_arquivo(rows: list[dict]) -> tuple[dict[str, dict], dict[st
     logger.info(f"Indice construido: {len(ean_stats)} EANs, {len(token_index)} tokens")
     return ean_stats, token_index
 
-def construir_indice_banco(empresa_id: str) -> tuple[dict[str, dict], dict[str, list[str]]]:
+def _normalizar_precos_entries(
+    entries: list[dict],
+    descricao: str,
+    ignorar_acima_dias: int | None = None,
+) -> tuple[list[float], list[str], float]:
+    """
+    Normaliza preços do histórico para unidade contável usando o multiplicador
+    inferido da descrição do produto.
+
+    A1: o histórico vem no banco com `preco_unitario` representando, em geral,
+    preço por embalagem (caixa). O motor compara contra `preco_oferta_unitario`,
+    portanto precisa dividir o histórico por `mult_historico` antes de comparar.
+
+    Bug 8 (sanity): se a divisão resultar em < 0.01, assume-se que o preço já
+    estava unitário e usa o valor original.
+
+    Args:
+        entries: linhas do historico_precos
+        descricao: descricao do produto (usada para detectar mult)
+        ignorar_acima_dias: se setado, ignora entradas mais antigas que N dias
+
+    Returns:
+        (precos_normalizados, datas, qtde_total)
+    """
+    import re as _re
+    from datetime import datetime, timedelta, timezone
+
+    mult = extrair_multiplicador_inteligente(descricao) if descricao else 1.0
+    if mult <= 0:
+        mult = 1.0
+
+    cutoff: datetime | None = None
+    if ignorar_acima_dias and ignorar_acima_dias > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=ignorar_acima_dias)
+
+    precos: list[float] = []
+    datas: list[str] = []
+    qtde_total = 0.0
+
+    for e in entries:
+        # Filtro de janela temporal
+        if cutoff is not None:
+            d_raw = e.get("data_entrada")
+            if d_raw:
+                try:
+                    d_obj = datetime.fromisoformat(str(d_raw)[:10]).replace(tzinfo=timezone.utc)
+                    if d_obj < cutoff:
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+        # Preço normalizado pelo mult da embalagem
+        try:
+            pu = float(e.get("preco_unitario") or 0)
+        except (ValueError, TypeError):
+            pu = 0.0
+
+        if pu > 0:
+            if mult > 1:
+                preco_norm = round(pu / mult, 4)
+                # Sanity: se ficar < 0.01, o preço provavelmente já era unitário
+                if preco_norm < 0.01 and pu >= 0.01:
+                    preco_norm = pu
+            else:
+                preco_norm = pu
+            precos.append(preco_norm)
+
+        d = e.get("data_entrada")
+        if d:
+            datas.append(str(d))
+
+        try:
+            qtd = float(e.get("quantidade_unitaria") or 0)
+            qtde_total += qtd
+        except (ValueError, TypeError):
+            pass
+
+    return precos, datas, qtde_total
+
+
+def construir_indice_banco(
+    empresa_id: str,
+    ignorar_acima_dias: int | None = None,
+) -> tuple[dict[str, dict], dict[str, list[str]]]:
     """
     Constroi o indice deterministico baixando produtos e historico do Supabase.
-    Isso substitui as queries granulares por uma carga massiva no inicio da analise.
+
+    Bug A1: preços são normalizados por unidade (dividindo por mult_historico)
+    para ficar coerente com `construir_indice_arquivo` — ambos retornam
+    sempre preço por UNIDADE CONTÁVEL.
     """
 
     client = get_supabase_client()
@@ -705,32 +843,13 @@ def construir_indice_banco(empresa_id: str) -> tuple[dict[str, dict], dict[str, 
         ean = str(p.get("ean") or "").strip()
         if not ean:
             continue
-            
+
         descricao = str(p.get("descricao") or "").strip()
         entries = historico.get(ean, [])
-        
-        precos = []
-        datas = []
-        qtde_total = 0.0
 
-        for e in entries:
-            try:
-                pu = float(e.get("preco_unitario") or 0)
-                if pu > 0:
-                    precos.append(pu)
-            except Exception:
-                pass
-            
-            d = e.get("data_entrada")
-            if d:
-                datas.append(str(d))
-            
-            try:
-                qtd = float(e.get("quantidade_unitaria") or 0)
-                qtde_total += qtd
-            except Exception:
-                # Fall back to try to extract from valor_total / preco se precisar, mas quantidade_unitaria e padrao
-                pass
+        precos, datas, qtde_total = _normalizar_precos_entries(
+            entries, descricao, ignorar_acima_dias=ignorar_acima_dias,
+        )
 
         demanda_mes = float(p.get("demanda_mes") or 0)
         estoque_item = int(float(p.get("estoque") or 0))
@@ -749,32 +868,17 @@ def construir_indice_banco(empresa_id: str) -> tuple[dict[str, dict], dict[str, 
             "ultima_data": max(datas) if datas else "N/A",
         }
 
-    # Adicionar itens no historico que talvez NÃO tenham cadastro no produto
+    # Itens no historico sem cadastro de produto — usa o próprio EAN como descricao
     for ean_hist, entries in historico.items():
         if ean_hist not in ean_stats:
-            precos = []
-            datas = []
-            qtde_total = 0.0
-            
-            for e in entries:
-                try:
-                    pu = float(e.get("preco_unitario") or 0)
-                    if pu > 0:
-                        precos.append(pu)
-                except:
-                    pass
-                d = e.get("data_entrada")
-                if d:
-                    datas.append(str(d))
-                try:
-                    qtd = float(e.get("quantidade_unitaria") or 0)
-                    qtde_total += qtd
-                except:
-                    pass
-                    
+            descricao_fallback = f"Item {ean_hist} (sem cadastro)"
+            precos, datas, qtde_total = _normalizar_precos_entries(
+                entries, descricao_fallback, ignorar_acima_dias=ignorar_acima_dias,
+            )
+
             ean_stats[ean_hist] = {
                 "ean": ean_hist,
-                "descricao": f"Item {ean_hist} (sem cadastro)",
+                "descricao": descricao_fallback,
                 "qtd_entradas": len(entries),
                 "qtde_total": qtde_total,
                 "demanda_mes": 0.0,
@@ -806,6 +910,7 @@ def executar_analise_deterministico(
     ean_stats: dict[str, dict],
     token_index: dict[str, list[str]],
     total_registros: int = 0,
+    config: dict | None = None,
 ) -> dict:
     """
     Executa a analise completa de forma deterministica.
@@ -813,9 +918,22 @@ def executar_analise_deterministico(
     - Busca de equivalentes por principio ativo
     - Suporte a ofertas com desconto % (sem preco absoluto)
     - Marcacao de origem do menor historico (= ou !=)
+    - Regras configuráveis por empresa (configuracoes_empresa).
+
+    Args:
+        config: dict com chaves:
+            - vantagem_minima_percentual (float, default 1.0)
+            - metodo_comparacao ('lowest' | 'average' | 'median', default 'lowest')
+            - considerar_equivalentes (bool, default True)
+            - horizonte_sugestao_meses (int, default 3)
     """
+    cfg = config or {}
+    vantagem_min = float(cfg.get("vantagem_minima_percentual", 1.0))
+    metodo = str(cfg.get("metodo_comparacao", "lowest"))
+    considerar_eq = bool(cfg.get("considerar_equivalentes", True))
+    horizonte = int(cfg.get("horizonte_sugestao_meses", 3))
+
     itens_resultado = []
-    used_eans: set[str] = set()
 
     for item in itens_extraidos:
         descricao = item.get("descricao", "")
@@ -836,11 +954,18 @@ def executar_analise_deterministico(
             ean_oferta=ean_oferta,
             ean_stats=ean_stats,
             token_index=token_index,
-            used_eans=used_eans,
         )
 
         if match:
-            menor_hist = match["menor_preco"]
+            # A4: usar metodo_comparacao para escolher referencia historica
+            if metodo == "average":
+                referencia_hist = match.get("media_preco") or match["menor_preco"]
+            elif metodo == "median":
+                # `media_preco` é mean; tratamos median como average por compatibilidade
+                referencia_hist = match.get("media_preco") or match["menor_preco"]
+            else:
+                referencia_hist = match["menor_preco"]
+            menor_hist = referencia_hist
             origem_menor = "="
 
             # Bug 15: Detectar multiplicador do histórico e equalizar escalas
@@ -871,7 +996,7 @@ def executar_analise_deterministico(
                 ean_principal=match["ean"],
                 ean_stats=ean_stats,
                 token_index=token_index,
-            )
+            ) if considerar_eq else []
 
             # Verificar se algum equivalente tem preco MENOR que o match principal
             menor_hist_equiv = None
@@ -893,8 +1018,16 @@ def executar_analise_deterministico(
                 variacao = desconto_pct
                 demanda = match.get("demanda_mes") or float(match.get("demanda_mes", 0))
                 estoque_item = match.get("estoque_item", 0)
-                sugestao = calcular_sugestao_pedido(demanda, estoque=estoque_item)
-                classificacao = classificar_oferta(variacao)
+                sugestao = calcular_sugestao_pedido(demanda, estoque=estoque_item, meses_cobertura=horizonte)
+                estoque_equiv_tmp = sum(eq.get("estoque_item", 0) for eq in equivalentes)
+                classificacao = classificar_oferta(
+                    variacao,
+                    estoque_equivalentes=estoque_equiv_tmp,
+                    demanda_mes=demanda,
+                    horizonte_sugestao_meses=horizonte,
+                    vantagem_minima_percentual=vantagem_min,
+                    considerar_equivalentes=considerar_eq,
+                )
 
                 recomendacao = gerar_recomendacao(
                     classificacao=classificacao,
@@ -939,8 +1072,16 @@ def executar_analise_deterministico(
             variacao = calcular_variacao_percentual(menor_hist, preco_efetivo)
             demanda = match.get("demanda_mes") or float(match.get("demanda_mes", 0))
             estoque_item = match.get("estoque_item", 0)
-            sugestao = calcular_sugestao_pedido(demanda, estoque=estoque_item)
-            classificacao = classificar_oferta(variacao)
+            sugestao = calcular_sugestao_pedido(demanda, estoque=estoque_item, meses_cobertura=horizonte)
+            estoque_equiv_calc = sum(eq.get("estoque_item", 0) for eq in equivalentes)
+            classificacao = classificar_oferta(
+                variacao,
+                estoque_equivalentes=estoque_equiv_calc,
+                demanda_mes=demanda,
+                horizonte_sugestao_meses=horizonte,
+                vantagem_minima_percentual=vantagem_min,
+                considerar_equivalentes=considerar_eq,
+            )
 
             # Re-scale history to match the offer's packaging for the UI
             # Bug 15: usar mult_efetivo (pode ser do histórico se oferta mult=1)
@@ -1032,7 +1173,14 @@ def executar_analise_deterministico(
             classificacao = "descartavel"
             if menor_hist_equiv and preco_oferta:
                 variacao = calcular_variacao_percentual(menor_hist_equiv, preco_oferta)
-                classificacao = classificar_oferta(variacao)
+                classificacao = classificar_oferta(
+                    variacao,
+                    estoque_equivalentes=estoque_equiv,
+                    demanda_mes=0,  # sem cadastro, sem demanda própria
+                    horizonte_sugestao_meses=horizonte,
+                    vantagem_minima_percentual=vantagem_min,
+                    considerar_equivalentes=considerar_eq,
+                )
 
             # Re-scale history to match the offer's packaging for the UI
             menor_hist_equiv_caixa = round(menor_hist_equiv * mult_efetivo_nomatch, 4) if menor_hist_equiv else None

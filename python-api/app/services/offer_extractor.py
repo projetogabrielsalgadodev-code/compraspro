@@ -145,13 +145,13 @@ Mensagem de oferta:
 ---"""
 
 
-async def extrair_itens_llm(texto: str) -> tuple[str | None, list[dict[str, Any]]]:
+async def extrair_itens_llm(texto: str) -> tuple[str | None, list[dict[str, Any]], dict[str, Any]]:
     """
     Extrai itens usando Claude com prompt expandido.
     Entende: hierarquia, %, blocos, emojis, formatos WhatsApp.
-    
+
     Returns:
-        fornecedor, itens, metrics
+        (fornecedor, itens, metrics)
     """
     from agno.agent import Agent
     from agno.models.anthropic import Claude
